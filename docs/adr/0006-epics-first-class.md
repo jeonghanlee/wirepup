@@ -1,6 +1,6 @@
 # ADR-0006: Treat EPICS CA and PVA as first-class protocols
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 

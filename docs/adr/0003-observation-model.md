@@ -1,6 +1,6 @@
 # ADR-0003: Protocol decoders emit typed observations
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 

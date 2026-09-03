@@ -1,6 +1,6 @@
 # ADR-0007: Make passive and active behavior explicit and structurally separate
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 

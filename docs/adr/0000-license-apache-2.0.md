@@ -1,6 +1,6 @@
 # ADR-0000: License WirePup under Apache License 2.0
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 

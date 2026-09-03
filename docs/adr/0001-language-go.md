@@ -1,6 +1,6 @@
 # ADR-0001: Use Go as the initial implementation language
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 

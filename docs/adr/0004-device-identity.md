@@ -1,6 +1,6 @@
 # ADR-0004: Treat device identity as evidence-based inference
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 

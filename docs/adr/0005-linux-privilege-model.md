@@ -1,6 +1,6 @@
 # ADR-0005: Minimize Linux privileges by operation
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 
