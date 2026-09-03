@@ -12,6 +12,7 @@ import (
 
 	"github.com/jeonghanlee/wirepup/internal/capture"
 	"github.com/jeonghanlee/wirepup/internal/capture/pcapfile"
+	"github.com/jeonghanlee/wirepup/internal/epics/ca"
 	"github.com/jeonghanlee/wirepup/internal/fixtures"
 )
 
@@ -31,6 +32,10 @@ var (
 	ipBcast   = netip.MustParseAddr("255.255.255.255")
 	ipZero    = netip.MustParseAddr("0.0.0.0")
 	ip6Device = netip.MustParseAddr("fe80::280:f4ff:fe12:3456")
+	caClient  = netip.MustParseAddr("10.20.4.88")
+	caBcast   = netip.MustParseAddr("10.20.4.255")
+	caServer  = netip.MustParseAddr("10.20.4.31")
+	caServer2 = netip.MustParseAddr("10.20.4.32")
 	ip6Unspec = netip.MustParseAddr("::")
 	hostname  = fixtures.Option(12, []byte("ioc-pc")...)
 	serverID  = fixtures.Option(54, 10, 20, 30, 1)
@@ -75,6 +80,24 @@ func fixtureSet() []fixture {
 		}},
 		{"vlan-tagged-arp", [][]byte{
 			fixtures.EthernetVLAN(fixtures.Broadcast, fixtures.DeviceMAC, 100, 0x0806, fixtures.ARPAnnounce(fixtures.DeviceMAC, ipDevice)[14:]),
+		}},
+		{"ca-search-response", [][]byte{
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, ca.DefaultServerPort, 40000, ca.SearchDatagram(1, "MPS:SYS:STATE", false)),
+			fixtures.IPv4UDP(fixtures.LaptopMAC, fixtures.ServerMAC, caClient, caServer, 40000, ca.DefaultServerPort, ca.SearchReplyDatagram(1, 5064)),
+		}},
+		{"ca-search-no-response", [][]byte{
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, ca.DefaultServerPort, 40000, ca.SearchDatagram(2, "MISSING:PV", false)),
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, ca.DefaultServerPort, 40000, ca.SearchDatagram(2, "MISSING:PV", false)),
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, ca.DefaultServerPort, 40000, ca.SearchDatagram(2, "MISSING:PV", false)),
+		}},
+		{"ca-beacon", [][]byte{
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.ServerMAC, caBcast, caServer, ca.DefaultRepeaterPort, 5064, ca.BeaconDatagram(5064, 100, caServer)),
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.ServerMAC, caBcast, caServer, ca.DefaultRepeaterPort, 5064, ca.BeaconDatagram(5064, 101, caServer)),
+		}},
+		{"ca-duplicate-servers", [][]byte{
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, ca.DefaultServerPort, 40000, ca.SearchDatagram(3, "DUP:PV", false)),
+			fixtures.IPv4UDP(fixtures.LaptopMAC, fixtures.ServerMAC, caClient, caServer, 40000, ca.DefaultServerPort, ca.SearchReplyDatagram(3, 5064)),
+			fixtures.IPv4UDP(fixtures.LaptopMAC, fixtures.SwitchMAC, caClient, caServer2, 40000, ca.DefaultServerPort, ca.SearchReplyDatagram(3, 5064)),
 		}},
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jeonghanlee/wirepup/internal/epics/ca"
 	"github.com/jeonghanlee/wirepup/internal/observation"
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
 	"github.com/jeonghanlee/wirepup/internal/protocol/dhcpv4"
@@ -229,6 +230,7 @@ type Table struct {
 	dorder    []*DHCPTransaction
 	claims    map[netip.Addr]*Conflict
 	corder    []*Conflict
+	ca        *caState
 }
 
 // New returns an empty table.
@@ -240,6 +242,7 @@ func New(opts Options) *Table {
 		neighbors: map[string]*Neighbor{},
 		dhcp:      map[string]*DHCPTransaction{},
 		claims:    map[netip.Addr]*Conflict{},
+		ca:        newCAState(),
 	}
 	for _, m := range opts.LocalMACs {
 		t.local[m] = true
@@ -326,6 +329,8 @@ func (t *Table) Apply(obs []observation.Observation) []Event {
 			events = append(events, t.applyICMPv6(frame, v)...)
 		case dhcpv4.Observation:
 			events = append(events, t.applyDHCP(frame, v)...)
+		case ca.Observation:
+			events = append(events, t.applyCA(frame, v)...)
 		}
 	}
 	return events

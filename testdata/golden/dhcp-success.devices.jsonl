@@ -165,5 +165,9 @@
     }
   ],
   "neighbors": [],
-  "conflicts": []
+  "conflicts": [],
+  "epics": {
+    "ca_servers": [],
+    "ca_searches": []
+  }
 }

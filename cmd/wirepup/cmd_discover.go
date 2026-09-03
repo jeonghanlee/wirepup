@@ -75,7 +75,7 @@ func discoverWith(ctx context.Context, e *env, g *globalFlags) int {
 	if g.pcap != "" && !last.IsZero() {
 		at = last
 	}
-	doc := output.DevicesFrom(src.Name(), at, ouiPath, table.Devices(), table.Neighbors(), table.Conflicts())
+	doc := output.DevicesFrom(src.Name(), at, ouiPath, table)
 	if g.json {
 		jsonout.Document(e.stdout, doc)
 	} else if len(doc.Devices) > 0 {

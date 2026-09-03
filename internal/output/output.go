@@ -12,6 +12,7 @@ import (
 
 	"github.com/jeonghanlee/wirepup/internal/device"
 	"github.com/jeonghanlee/wirepup/internal/diagnose"
+	"github.com/jeonghanlee/wirepup/internal/epics/ca"
 	"github.com/jeonghanlee/wirepup/internal/interfaces"
 	"github.com/jeonghanlee/wirepup/internal/observation"
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
@@ -21,6 +22,7 @@ import (
 	"github.com/jeonghanlee/wirepup/internal/protocol/ipv4"
 	"github.com/jeonghanlee/wirepup/internal/protocol/ipv6"
 	"github.com/jeonghanlee/wirepup/internal/protocol/lldp"
+	"github.com/jeonghanlee/wirepup/internal/protocol/tcp"
 )
 
 // Schema identifiers; the major number changes only on a breaking change.
@@ -157,6 +159,68 @@ type Devices struct {
 	Devices     []Device   `json:"devices"`
 	Neighbors   []Neighbor `json:"neighbors"`
 	Conflicts   []Conflict `json:"conflicts"`
+	EPICS       EPICS      `json:"epics"`
+}
+
+// EPICS is the controls-protocol view of a capture.
+type EPICS struct {
+	CAServers  []CAServer `json:"ca_servers"`
+	CASearches []CASearch `json:"ca_searches"`
+}
+
+// CAServer is one Channel Access server seen on the wire.
+type CAServer struct {
+	Address   string    `json:"address"`
+	TCPPort   uint16    `json:"tcp_port"`
+	MAC       string    `json:"mac,omitempty"`
+	PVs       []string  `json:"pvs_answered"`
+	Answers   int       `json:"search_answers"`
+	Beacons   int       `json:"beacons"`
+	FirstSeen time.Time `json:"first_seen"`
+	LastSeen  time.Time `json:"last_seen"`
+	Ref       Ref       `json:"evidence"`
+}
+
+// CASearch is one client search with its answers.
+type CASearch struct {
+	Client    string       `json:"client"`
+	ClientMAC string       `json:"client_mac,omitempty"`
+	ID        uint32       `json:"search_id"`
+	PV        string       `json:"pv"`
+	Count     int          `json:"count"`
+	FirstSeen time.Time    `json:"first_seen"`
+	LastSeen  time.Time    `json:"last_seen"`
+	Answers   []CAResponse `json:"answers"`
+	NotFound  []CAResponse `json:"not_found"`
+	Ref       Ref          `json:"evidence"`
+}
+
+// CAResponse is one server answer.
+type CAResponse struct {
+	Server  string    `json:"server"`
+	TCPPort uint16    `json:"tcp_port"`
+	MAC     string    `json:"mac,omitempty"`
+	At      time.Time `json:"time"`
+	Ref     Ref       `json:"evidence"`
+}
+
+// EPICSFrom converts the CA state of a table.
+func EPICSFrom(servers []device.CAServer, searches []device.CASearch) EPICS {
+	out := EPICS{CAServers: make([]CAServer, 0, len(servers)), CASearches: make([]CASearch, 0, len(searches))}
+	for _, s := range servers {
+		out.CAServers = append(out.CAServers, CAServer{Address: s.Addr.String(), TCPPort: s.TCPPort, MAC: s.MAC, PVs: emptyList(s.PVs), Answers: s.Answers, Beacons: s.Beacons, FirstSeen: s.FirstSeen, LastSeen: s.LastSeen, Ref: refFrom(s.Ref)})
+	}
+	for _, s := range searches {
+		cs := CASearch{Client: fmt.Sprintf("%s:%d", s.ClientIP, s.ClientPort), ClientMAC: s.ClientMAC, ID: s.ID, PV: s.PV, Count: s.Count, FirstSeen: s.FirstSeen, LastSeen: s.LastSeen, Answers: []CAResponse{}, NotFound: []CAResponse{}, Ref: refFrom(s.Ref)}
+		for _, r := range s.Responses {
+			cs.Answers = append(cs.Answers, CAResponse{Server: r.ServerIP.String(), TCPPort: r.TCPPort, MAC: r.ServerMAC, At: r.At, Ref: refFrom(r.Ref)})
+		}
+		for _, r := range s.NotFound {
+			cs.NotFound = append(cs.NotFound, CAResponse{Server: r.ServerIP.String(), TCPPort: r.TCPPort, MAC: r.ServerMAC, At: r.At, Ref: refFrom(r.Ref)})
+		}
+		out.CASearches = append(out.CASearches, cs)
+	}
+	return out
 }
 
 // Neighbor is one LLDP-advertising network device.
@@ -350,6 +414,56 @@ func EventFrom(o observation.Observation) Event {
 			}
 		}
 		e.Summary = ndpSummary(v)
+	case tcp.Observation:
+		e.Fields["src"] = v.Src.String()
+		e.Fields["dst"] = v.Dst.String()
+		e.Fields["src_port"] = v.SrcPort
+		e.Fields["dst_port"] = v.DstPort
+		e.Fields["flags"] = tcp.FlagNames(v.Flags)
+		e.Fields["seq"] = v.Seq
+		e.Fields["payload_length"] = v.PayloadLen
+		e.Summary = fmt.Sprintf("tcp %s:%d -> %s:%d [%s]", v.Src, v.SrcPort, v.Dst, v.DstPort, tcp.FlagNames(v.Flags))
+	case ca.Observation:
+		e.Fields["command"] = v.CommandName()
+		e.Fields["transport"] = v.Transport
+		e.Fields["direction"] = v.Direction
+		e.Fields["src"] = fmt.Sprintf("%s:%d", v.Src, v.SrcPort)
+		e.Fields["dst"] = fmt.Sprintf("%s:%d", v.Dst, v.DstPort)
+		e.Fields["data_type"] = v.DataType
+		e.Fields["count"] = v.Count
+		e.Fields["cid"] = v.CID
+		e.Fields["available"] = v.Available
+		e.Fields["payload_size"] = v.PayloadSize
+		if v.PVName != "" {
+			e.Fields["pv"] = v.PVName
+		}
+		switch v.Kind() {
+		case "ca.search":
+			e.Fields["search_id"] = v.SearchID
+			e.Fields["reply_wanted"] = v.ReplyWanted
+			e.Fields["minor_version"] = v.MinorVersion
+		case "ca.search_response", "ca.not_found":
+			e.Fields["search_id"] = v.SearchID
+			e.Fields["server"] = v.ServerIP.String()
+			e.Fields["server_tcp_port"] = v.ServerPort
+			e.Fields["minor_version"] = v.MinorVersion
+		case "ca.beacon":
+			e.Fields["server"] = v.ServerIP.String()
+			e.Fields["server_tcp_port"] = v.ServerPort
+			e.Fields["beacon_id"] = v.BeaconID
+			e.Fields["minor_version"] = v.MinorVersion
+		case "ca.version":
+			e.Fields["minor_version"] = v.MinorVersion
+		case "ca.client_name", "ca.host_name":
+			e.Fields["text"] = v.Text
+		case "ca.create_channel":
+			e.Fields["minor_version"] = v.MinorVersion
+		case "ca.create_channel_response":
+			e.Fields["sid"] = v.SID
+		case "ca.access_rights":
+			e.Fields["rights"] = v.Rights
+		}
+		e.Summary = caSummary(v)
 	case dhcpv4.Observation:
 		e.Fields["message_type"] = v.TypeName()
 		e.Fields["xid"] = fmt.Sprintf("0x%08x", v.XID)
@@ -380,6 +494,29 @@ func dhcpSummary(v dhcpv4.Observation) string {
 		return fmt.Sprintf("dhcp nak to %s from %s", v.ClientMAC, addrOrEmpty(v.ServerID))
 	default:
 		return fmt.Sprintf("dhcp %s from %s (%s)", v.TypeName(), v.ClientMAC, dashIf(v.Hostname))
+	}
+}
+
+func caSummary(v ca.Observation) string {
+	switch v.Kind() {
+	case "ca.search":
+		return fmt.Sprintf("ca search %s from %s:%d to %s:%d id %d", v.PVName, v.Src, v.SrcPort, v.Dst, v.DstPort, v.SearchID)
+	case "ca.search_response":
+		return fmt.Sprintf("ca search response id %d from server %s tcp port %d to %s:%d", v.SearchID, v.ServerIP, v.ServerPort, v.Dst, v.DstPort)
+	case "ca.not_found":
+		return fmt.Sprintf("ca not found id %d from %s to %s:%d", v.SearchID, v.Src, v.Dst, v.DstPort)
+	case "ca.beacon":
+		return fmt.Sprintf("ca beacon from server %s tcp port %d id %d", v.ServerIP, v.ServerPort, v.BeaconID)
+	case "ca.version":
+		return fmt.Sprintf("ca version minor %d %s %s:%d -> %s:%d", v.MinorVersion, v.Transport, v.Src, v.SrcPort, v.Dst, v.DstPort)
+	case "ca.create_channel":
+		return fmt.Sprintf("ca create channel %s cid %d %s:%d -> %s:%d", v.PVName, v.CID, v.Src, v.SrcPort, v.Dst, v.DstPort)
+	case "ca.create_channel_response":
+		return fmt.Sprintf("ca channel created cid %d sid %d type %d count %d from %s:%d", v.CID, v.SID, v.DataType, v.Count, v.Src, v.SrcPort)
+	case "ca.client_name", "ca.host_name":
+		return fmt.Sprintf("ca %s %q %s:%d -> %s:%d", v.CommandName(), v.Text, v.Src, v.SrcPort, v.Dst, v.DstPort)
+	default:
+		return fmt.Sprintf("ca %s %s %s:%d -> %s:%d", v.CommandName(), v.Transport, v.Src, v.SrcPort, v.Dst, v.DstPort)
 	}
 }
 
@@ -592,8 +729,9 @@ func NeighborFrom(n device.Neighbor) Neighbor {
 }
 
 // DevicesFrom converts a table snapshot.
-func DevicesFrom(source string, at time.Time, ouiFile string, ds []device.Device, ns []device.Neighbor, cs []device.Conflict) Devices {
-	out := Devices{Schema: SchemaDevices, Source: source, GeneratedAt: at, OUIFile: ouiFile, Devices: make([]Device, 0, len(ds)), Neighbors: make([]Neighbor, 0, len(ns)), Conflicts: make([]Conflict, 0, len(cs))}
+func DevicesFrom(source string, at time.Time, ouiFile string, t *device.Table) Devices {
+	ds, ns, cs := t.Devices(), t.Neighbors(), t.Conflicts()
+	out := Devices{Schema: SchemaDevices, Source: source, GeneratedAt: at, OUIFile: ouiFile, Devices: make([]Device, 0, len(ds)), Neighbors: make([]Neighbor, 0, len(ns)), Conflicts: make([]Conflict, 0, len(cs)), EPICS: EPICSFrom(t.CAServers(), t.CASearches())}
 	for _, d := range ds {
 		out.Devices = append(out.Devices, DeviceFrom(d))
 	}

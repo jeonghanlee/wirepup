@@ -35,6 +35,11 @@ var goldenCases = []struct {
 	{"same-l2-different-subnet.devices", []string{"read", "--devices", "--json", "--quiet", "--oui-file", ouiFixture, filepath.Join(fixtureDir, "same-l2-different-subnet.pcap")}},
 	{"same-l2-different-subnet.diagnosis", []string{"diagnose", "--pcap", filepath.Join(fixtureDir, "same-l2-different-subnet.pcap"), "--local", "10.20.30.51/24", "--json", "--quiet", "--oui-file", ouiFixture}},
 	{"same-l2-different-subnet.target", []string{"diagnose", "192.168.1.100", "--pcap", filepath.Join(fixtureDir, "same-l2-different-subnet.pcap"), "--local", "10.20.30.51/24", "--json", "--quiet", "--oui-file", ouiFixture}},
+	{"ca-search-response.events", []string{"epics", "observe", "--pcap", filepath.Join(fixtureDir, "ca-search-response.pcap"), "--json", "--quiet"}},
+	{"ca-search-response.devices", []string{"read", "--devices", "--json", "--quiet", "--oui-file", ouiFixture, filepath.Join(fixtureDir, "ca-search-response.pcap")}},
+	{"ca-beacon.events", []string{"epics", "observe", "--pcap", filepath.Join(fixtureDir, "ca-beacon.pcap"), "--json", "--quiet"}},
+	{"ca-duplicate-servers.find", []string{"epics", "find", "DUP:PV", "--pcap", filepath.Join(fixtureDir, "ca-duplicate-servers.pcap"), "--json", "--quiet"}},
+	{"ca-search-no-response.find", []string{"epics", "find", "MISSING:PV", "--pcap", filepath.Join(fixtureDir, "ca-search-no-response.pcap"), "--json", "--quiet"}},
 }
 
 func TestGoldenJSON(t *testing.T) {
@@ -115,5 +120,37 @@ func TestDiagnoseTextAndExitCodes(t *testing.T) {
 	}
 	if code, _, errs := runCLI(t, "diagnose", "--quiet"); code != exitUsage || !strings.Contains(errs, "interface") {
 		t.Fatalf("no source: %d %s", code, errs)
+	}
+}
+
+func TestEPICSCommands(t *testing.T) {
+	pcap := filepath.Join(fixtureDir, "ca-search-response.pcap")
+	code, out, _ := runCLI(t, "epics", "observe", "--pcap", pcap, "--quiet")
+	if code != exitOK || !strings.Contains(out, "CA SEARCH\n") || !strings.Contains(out, "PV           MPS:SYS:STATE") || !strings.Contains(out, "CA SEARCH RESPONSE") || !strings.Contains(out, "TCP port     5064") {
+		t.Fatalf("epics observe exit %d:\n%s", code, out)
+	}
+	code, out, _ = runCLI(t, "epics", "find", "MPS:SYS:STATE", "--pcap", pcap, "--quiet")
+	if code != exitOK || !strings.Contains(out, "server 10.20.4.31 answered for MPS:SYS:STATE: TCP port 5064") {
+		t.Fatalf("epics find exit %d:\n%s", code, out)
+	}
+	code, out, _ = runCLI(t, "epics", "find", "NOPE:PV", "--pcap", pcap, "--quiet")
+	if code != exitNotObserved || !strings.Contains(out, "nothing about NOPE:PV") {
+		t.Fatalf("unseen pv exit %d:\n%s", code, out)
+	}
+	code, out, _ = runCLI(t, "read", "--devices", "--quiet", filepath.Join(fixtureDir, "ca-search-no-response.pcap"))
+	if code != exitOK || !strings.Contains(out, "CA SEARCHES WITHOUT OBSERVED RESPONSE") || !strings.Contains(out, "MISSING:PV from 10.20.4.88:40000 (x3)") {
+		t.Fatalf("unanswered table:\n%s", out)
+	}
+	if code, _, errs := runCLI(t, "epics"); code != exitUsage || !strings.Contains(errs, "usage") {
+		t.Fatalf("epics usage %d %s", code, errs)
+	}
+	if code, _, errs := runCLI(t, "epics", "find"); code != exitUsage || !strings.Contains(errs, "PV name") {
+		t.Fatalf("find without pv %d %s", code, errs)
+	}
+	if code, _, errs := runCLI(t, "epics", "find", "X:Y"); code != exitUsage || !strings.Contains(errs, "--active") {
+		t.Fatalf("find without source %d %s", code, errs)
+	}
+	if code, _, errs := runCLI(t, "epics", "find", "X:Y", "--active", "--to", "junk", "--yes"); code != exitUsage || !strings.Contains(errs, "--to") {
+		t.Fatalf("bad destination %d %s", code, errs)
 	}
 }

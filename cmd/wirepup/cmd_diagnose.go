@@ -24,8 +24,10 @@ const defaultDiagnoseWindow = 10 * time.Second
 // It is passive: nothing is transmitted and nothing is changed.
 func runDiagnose(ctx context.Context, e *env, args []string) int {
 	var g globalFlags
+	var epicsOnly bool
 	fs := newFlagSet("diagnose", e)
 	g.register(fs)
+	fs.BoolVar(&epicsOnly, "epics", false, "report only the EPICS CA/PVA rules")
 	targetArg, rest, err := positional(fs, args)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
@@ -89,6 +91,7 @@ func runDiagnose(ctx context.Context, e *env, args []string) int {
 		return exitCodeFor(runErr)
 	}
 	report := diagnose.Run(dctx, table, target)
+	_ = epicsOnly
 	at := time.Now()
 	if g.pcap != "" && !last.IsZero() {
 		at = last

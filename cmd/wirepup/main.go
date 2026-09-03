@@ -82,6 +82,7 @@ var commands = []command{
 	{"capture", "write frames to a PCAP/PCAPNG file (passive)", runCapture},
 	{"read", "replay a capture file offline", runRead},
 	{"diagnose", "rule-based diagnosis (passive)", runDiagnose},
+	{"epics", "EPICS CA/PVA tools: observe, find, diagnose", runEPICS},
 	{"probe", "bounded ARP sweep (ACTIVE: transmits)", runProbe},
 	{"connect", "add a temporary secondary IPv4 address (ACTIVE: changes host)", runConnect},
 	{"disconnect", "remove WirePup-created temporary addresses (ACTIVE: changes host)", runDisconnect},

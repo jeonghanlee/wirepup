@@ -347,7 +347,13 @@ func refuseIfConfigured(ctx diagnose.Context, p netip.Prefix) error {
 }
 
 func renderReport(e *env, g *globalFlags, source string, r diagnose.Report) {
-	doc := output.DiagnosisFrom(source, time.Now(), r)
+	renderReportAt(e, g, source, r, time.Now())
+}
+
+// renderReportAt renders with an explicit generation time, which file
+// replay sets to the last packet so that output is reproducible.
+func renderReportAt(e *env, g *globalFlags, source string, r diagnose.Report, at time.Time) {
+	doc := output.DiagnosisFrom(source, at, r)
 	if g.json {
 		jsonout.Document(e.stdout, doc)
 		return

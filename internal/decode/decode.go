@@ -6,7 +6,10 @@
 package decode
 
 import (
+	"net/netip"
+
 	"github.com/jeonghanlee/wirepup/internal/capture"
+	"github.com/jeonghanlee/wirepup/internal/epics/ca"
 	"github.com/jeonghanlee/wirepup/internal/observation"
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
 	"github.com/jeonghanlee/wirepup/internal/protocol/dhcpv4"
@@ -15,6 +18,7 @@ import (
 	"github.com/jeonghanlee/wirepup/internal/protocol/ipv4"
 	"github.com/jeonghanlee/wirepup/internal/protocol/ipv6"
 	"github.com/jeonghanlee/wirepup/internal/protocol/lldp"
+	"github.com/jeonghanlee/wirepup/internal/protocol/tcp"
 	"github.com/jeonghanlee/wirepup/internal/protocol/udp"
 )
 
@@ -27,7 +31,24 @@ const (
 	ProtoIPv6     = "ipv6"
 	ProtoICMPv6   = "icmpv6"
 	ProtoDHCP     = "dhcp"
+	ProtoTCP      = "tcp"
+	ProtoCA       = "epics.ca"
 )
+
+// Transport names in EPICS observations.
+const (
+	transportUDP = "udp"
+	transportTCP = "tcp"
+)
+
+// Ports configure the EPICS port hints (defaults unless overridden).
+type Ports struct {
+	CAServer   uint16
+	CARepeater uint16
+}
+
+// DefaultPorts are the EPICS defaults.
+var DefaultPorts = Ports{CAServer: ca.DefaultServerPort, CARepeater: ca.DefaultRepeaterPort}
 
 // Stats counts what the pipeline saw.
 type Stats struct {
@@ -42,12 +63,16 @@ type Decoder struct {
 	source string
 	next   uint64
 	stats  Stats
+	ports  Ports
 }
 
-// New returns a pipeline for one capture source.
+// New returns a pipeline for one capture source with default ports.
 func New(source string) *Decoder {
-	return &Decoder{source: source}
+	return &Decoder{source: source, ports: DefaultPorts}
 }
+
+// SetPorts overrides the EPICS port hints.
+func (d *Decoder) SetPorts(p Ports) { d.ports = p }
 
 // Stats returns the running counters.
 func (d *Decoder) Stats() Stats { return d.stats }
@@ -92,7 +117,7 @@ func (d *Decoder) Decode(pkt capture.Packet) []observation.Observation {
 			obs = append(obs, o)
 		}
 	case ethernet.EtherTypeIPv4:
-		obs = append(obs, decodeIPv4(ev, frame.Payload)...)
+		obs = append(obs, d.decodeIPv4(ev, frame.Payload)...)
 	case ethernet.EtherTypeIPv6:
 		obs = append(obs, decodeIPv6(ev, frame.Payload)...)
 	}
@@ -170,7 +195,7 @@ func decodeLLDP(ev observation.Evidence, frame ethernet.Frame) (observation.Obse
 
 // decodeIPv4 emits the IPv4 observation and dispatches the payload to
 // the transport and application parsers.
-func decodeIPv4(ev observation.Evidence, payload []byte) []observation.Observation {
+func (d *Decoder) decodeIPv4(ev observation.Evidence, payload []byte) []observation.Observation {
 	p, err := ipv4.Parse(payload)
 	if err != nil {
 		return nil
@@ -190,23 +215,79 @@ func decodeIPv4(ev observation.Evidence, payload []byte) []observation.Observati
 	}
 	switch p.Protocol {
 	case ipv4.ProtoUDP:
-		obs = append(obs, decodeUDP(ev, p, p.Payload)...)
+		obs = append(obs, d.decodeUDP(ev, p, p.Payload)...)
+	case ipv4.ProtoTCP:
+		obs = append(obs, d.decodeTCP(ev, p.Src, p.Dst, p.Payload)...)
 	}
 	return obs
 }
 
 // decodeUDP dispatches on the port pair. DHCP is claimed only when the
-// magic cookie and message type validate, not from the port alone.
-func decodeUDP(ev observation.Evidence, ip ipv4.Packet, payload []byte) []observation.Observation {
-	d, err := udp.Parse(payload)
+// magic cookie and message type validate; CA is claimed on its ports
+// when the datagram parses, and on other ports only when the first
+// header is unmistakably CA.
+func (d *Decoder) decodeUDP(ev observation.Evidence, ip ipv4.Packet, payload []byte) []observation.Observation {
+	dg, err := udp.Parse(payload)
 	if err != nil {
 		return nil
 	}
 	var obs []observation.Observation
-	if isPort(d, dhcpv4.ServerPort) || isPort(d, dhcpv4.ClientPort) {
-		if o, ok := decodeDHCP(ev, ip, d); ok {
+	switch {
+	case isPort(dg, dhcpv4.ServerPort) || isPort(dg, dhcpv4.ClientPort):
+		if o, ok := decodeDHCP(ev, ip, dg); ok {
 			obs = append(obs, o)
 		}
+	case isPort(dg, d.ports.CAServer) || isPort(dg, d.ports.CARepeater):
+		obs = append(obs, d.decodeCA(ev, transportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.Confirmed)...)
+	case len(dg.Payload) >= ca.HeaderLen && ca.Probable(dg.Payload):
+		obs = append(obs, d.decodeCA(ev, transportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.StrongHint)...)
+	}
+	return obs
+}
+
+// decodeTCP emits connection events and parses application messages
+// that start at the segment boundary; a partial trailing message lowers
+// the confidence to a strong hint because no reassembly is done.
+func (d *Decoder) decodeTCP(ev observation.Evidence, src, dst netip.Addr, payload []byte) []observation.Observation {
+	seg, err := tcp.Parse(payload)
+	if err != nil {
+		return nil
+	}
+	var obs []observation.Observation
+	if tcp.IsStateEvent(seg.Flags) {
+		tev := ev
+		tev.Protocol = ProtoTCP
+		obs = append(obs, tcp.Observation{Evidence: tev, Src: src, Dst: dst, SrcPort: seg.SrcPort, DstPort: seg.DstPort, Flags: seg.Flags, Seq: seg.Seq, PayloadLen: len(seg.Payload)})
+	}
+	if len(seg.Payload) == 0 {
+		return obs
+	}
+	if seg.SrcPort == d.ports.CAServer || seg.DstPort == d.ports.CAServer {
+		obs = append(obs, d.decodeCA(ev, transportTCP, src, dst, seg.SrcPort, seg.DstPort, seg.Payload, observation.Confirmed)...)
+	}
+	return obs
+}
+
+// decodeCA parses every message in the buffer. A datagram that does
+// not parse at all is not CA, whatever the port says.
+func (d *Decoder) decodeCA(ev observation.Evidence, transport string, src, dst netip.Addr, srcPort, dstPort uint16, payload []byte, conf observation.Confidence) []observation.Observation {
+	msgs, err := ca.Parse(payload, transport == transportUDP)
+	if len(msgs) == 0 {
+		return nil
+	}
+	if err != nil {
+		if transport == transportUDP {
+			return nil
+		}
+		conf = observation.StrongHint
+	}
+	ev.Protocol = ProtoCA
+	ev.Confidence = conf
+	var obs []observation.Observation
+	for _, m := range msgs {
+		o := ca.Interpret(m, transport, src, dst, srcPort, dstPort, d.ports.CAServer)
+		o.Evidence = ev
+		obs = append(obs, o)
 	}
 	return obs
 }

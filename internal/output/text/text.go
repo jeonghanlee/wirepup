@@ -16,7 +16,7 @@ const (
 	timeLayout   = "15:04:05.000000"
 	tabMinWidth  = 2
 	tabPadding   = 2
-	labelWidth   = 10
+	labelWidth   = 12
 	unknownValue = "unknown"
 )
 
@@ -132,6 +132,25 @@ func Devices(w io.Writer, doc output.Devices) error {
 			fmt.Fprintf(w, "%s claimed by %s\n", c.Address, strings.Join(c.MACs, ", "))
 		}
 	}
+	if len(doc.EPICS.CAServers) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "CA SERVERS")
+		tw = tabwriter.NewWriter(w, tabMinWidth, 0, tabPadding, ' ', 0)
+		fmt.Fprintln(tw, "SERVER\tTCP PORT\tMAC\tANSWERS\tBEACONS\tPVs ANSWERED")
+		for _, s := range doc.EPICS.CAServers {
+			fmt.Fprintf(tw, "%s\t%d\t%s\t%d\t%d\t%s\n", s.Address, s.TCPPort, dash(s.MAC), s.Answers, s.Beacons, dash(strings.Join(s.PVs, ",")))
+		}
+		if err := tw.Flush(); err != nil {
+			return err
+		}
+	}
+	if unanswered := unansweredSearches(doc.EPICS.CASearches); len(unanswered) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "CA SEARCHES WITHOUT OBSERVED RESPONSE (absence of a reply is not proof the PV does not exist)")
+		for _, s := range unanswered {
+			fmt.Fprintf(w, "%s from %s (x%d)\n", s.PV, s.Client, s.Count)
+		}
+	}
 	if len(doc.Neighbors) == 0 {
 		return nil
 	}
@@ -227,6 +246,55 @@ func refs(rs []output.Ref) string {
 		parts = append(parts, fmt.Sprintf("#%d", r.PacketID))
 	}
 	return "  [" + rs[0].Source + " " + strings.Join(parts, ",") + "]"
+}
+
+func unansweredSearches(ss []output.CASearch) []output.CASearch {
+	var out []output.CASearch
+	for _, s := range ss {
+		if len(s.Answers) == 0 {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// EPICSEvent prints a CA observation as the labelled block used by the
+// epics observe command (README examples).
+func EPICSEvent(w io.Writer, e output.Event) {
+	var b strings.Builder
+	f := e.Fields
+	str := func(k string) string { return fmt.Sprint(f[k]) }
+	switch e.Kind {
+	case "ca.search":
+		b.WriteString("CA SEARCH\n")
+		line(&b, "Client", str("src"))
+		line(&b, "Destination", str("dst"))
+		line(&b, "PV", str("pv"))
+		line(&b, "Search ID", str("search_id"))
+	case "ca.search_response":
+		b.WriteString("CA SEARCH RESPONSE\n")
+		line(&b, "Server", str("server"))
+		line(&b, "TCP port", str("server_tcp_port"))
+		line(&b, "Client", str("dst"))
+		line(&b, "Search ID", str("search_id"))
+	case "ca.beacon":
+		b.WriteString("CA BEACON\n")
+		line(&b, "Server", str("server"))
+		line(&b, "TCP port", str("server_tcp_port"))
+		line(&b, "Beacon ID", str("beacon_id"))
+	case "ca.not_found":
+		b.WriteString("CA NOT FOUND\n")
+		line(&b, "Server", str("server"))
+		line(&b, "Client", str("dst"))
+		line(&b, "Search ID", str("search_id"))
+	default:
+		b.WriteString(strings.ToUpper(strings.ReplaceAll(e.Kind, "_", " ")) + "\n")
+		line(&b, "Summary", e.Summary)
+	}
+	line(&b, "Time", e.Time.Local().Format(timeLayout))
+	line(&b, "Evidence", fmt.Sprintf("%s #%d (%s)", e.Source, e.PacketID, e.Confidence))
+	b.WriteString("\n")
+	io.WriteString(w, b.String())
 }
 
 func bestIPv4(d output.Device) string {
