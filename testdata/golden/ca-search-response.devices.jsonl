@@ -169,6 +169,8 @@
           "packet_id": 1
         }
       }
-    ]
+    ],
+    "pva_servers": [],
+    "pva_searches": []
   }
 }

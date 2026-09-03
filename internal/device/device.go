@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/jeonghanlee/wirepup/internal/epics/ca"
+	"github.com/jeonghanlee/wirepup/internal/epics/pva"
 	"github.com/jeonghanlee/wirepup/internal/observation"
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
 	"github.com/jeonghanlee/wirepup/internal/protocol/dhcpv4"
@@ -331,6 +332,8 @@ func (t *Table) Apply(obs []observation.Observation) []Event {
 			events = append(events, t.applyDHCP(frame, v)...)
 		case ca.Observation:
 			events = append(events, t.applyCA(frame, v)...)
+		case pva.Observation:
+			events = append(events, t.applyPVA(frame, v)...)
 		}
 	}
 	return events

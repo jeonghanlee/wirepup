@@ -13,8 +13,12 @@ import (
 	"github.com/jeonghanlee/wirepup/internal/capture"
 	"github.com/jeonghanlee/wirepup/internal/capture/pcapfile"
 	"github.com/jeonghanlee/wirepup/internal/epics/ca"
+	"github.com/jeonghanlee/wirepup/internal/epics/pva"
 	"github.com/jeonghanlee/wirepup/internal/fixtures"
 )
+
+// pvaGUID is the fixed server identity of the PVA fixtures.
+var pvaGUID = [12]byte{0x57, 0x69, 0x72, 0x65, 0x50, 0x75, 0x70, 0x00, 0x00, 0x00, 0x00, 0x01}
 
 const outDir = "testdata/pcap"
 
@@ -93,6 +97,21 @@ func fixtureSet() []fixture {
 		{"ca-beacon", [][]byte{
 			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.ServerMAC, caBcast, caServer, ca.DefaultRepeaterPort, 5064, ca.BeaconDatagram(5064, 100, caServer)),
 			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.ServerMAC, caBcast, caServer, ca.DefaultRepeaterPort, 5064, ca.BeaconDatagram(5064, 101, caServer)),
+		}},
+		{"pva-search-response", [][]byte{
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, pva.DefaultUDPPort, 40000, pva.SearchDatagram(1, 1, "MPS:SYS:STATE", true, false)),
+			fixtures.IPv4UDP(fixtures.LaptopMAC, fixtures.ServerMAC, caClient, caServer, 40000, pva.DefaultUDPPort, pva.SearchResponseDatagram(pvaGUID, 1, netip.Addr{}, pva.DefaultTCPPort, true, []int32{1})),
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, pva.DefaultUDPPort, 40000, pva.SearchDatagram(2, 2, "MISSING:PV", true, false)),
+		}},
+		{"pva-beacon", [][]byte{
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.ServerMAC, caBcast, caServer, pva.DefaultUDPPort, pva.DefaultUDPPort, pva.BeaconDatagram(pvaGUID, 1, 5, netip.Addr{}, pva.DefaultTCPPort)),
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.ServerMAC, caBcast, caServer, pva.DefaultUDPPort, pva.DefaultUDPPort, pva.BeaconDatagram(pvaGUID, 2, 5, netip.Addr{}, pva.DefaultTCPPort)),
+		}},
+		{"pva-tcp-handshake", [][]byte{
+			fixtures.IPv4TCP(fixtures.ServerMAC, fixtures.LaptopMAC, caServer, caClient, pva.DefaultTCPPort, 40002, 0x02, 1, nil),
+			fixtures.IPv4TCP(fixtures.LaptopMAC, fixtures.ServerMAC, caClient, caServer, 40002, pva.DefaultTCPPort, 0x12, 1, nil),
+			fixtures.IPv4TCP(fixtures.LaptopMAC, fixtures.ServerMAC, caClient, caServer, 40002, pva.DefaultTCPPort, 0x18, 2, append(pva.SetByteOrder(true), pva.ValidationRequest(65536, 127, []string{"anonymous", "ca"})...)),
+			fixtures.IPv4TCP(fixtures.ServerMAC, fixtures.LaptopMAC, caServer, caClient, pva.DefaultTCPPort, 40002, 0x18, 2, pva.CreateChannelRequest(1, "MPS:SYS:STATE")),
 		}},
 		{"ca-duplicate-servers", [][]byte{
 			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, ca.DefaultServerPort, 40000, ca.SearchDatagram(3, "DUP:PV", false)),

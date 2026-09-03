@@ -1,0 +1,52 @@
+{
+  "schema": "wirepup/diagnosis/1",
+  "source": "../../testdata/pcap/pva-search-response.pcap",
+  "interface": "",
+  "target_observed": false,
+  "generated_at": "2026-01-01T00:00:02Z",
+  "observed": [
+    {
+      "code": "pva-search-seen",
+      "text": "PVA search for MPS:SYS:STATE from 10.20.4.88:40000 (x1, seq 1)",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/pva-search-response.pcap",
+          "packet_id": 1
+        }
+      ],
+      "data": {
+        "client": "10.20.4.88",
+        "count": "1"
+      }
+    },
+    {
+      "code": "pva-search-answer",
+      "text": "PVA server 10.20.4.31 answered for MPS:SYS:STATE: TCP port 5075 guid 576972655075700000000001",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/pva-search-response.pcap",
+          "packet_id": 2
+        }
+      ],
+      "data": {
+        "guid": "576972655075700000000001",
+        "server": "10.20.4.31",
+        "tcp_port": "5075"
+      }
+    }
+  ],
+  "inferred": [
+    {
+      "code": "pva-server-claims",
+      "text": "PVA server 10.20.4.31 (TCP 5075, guid 576972655075700000000001) claims MPS:SYS:STATE",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/pva-search-response.pcap",
+          "packet_id": 2
+        }
+      ]
+    }
+  ],
+  "recommended": [],
+  "executed": []
+}

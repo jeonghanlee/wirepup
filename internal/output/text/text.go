@@ -144,6 +144,25 @@ func Devices(w io.Writer, doc output.Devices) error {
 			return err
 		}
 	}
+	if len(doc.EPICS.PVAServers) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "PVA SERVERS")
+		tw = tabwriter.NewWriter(w, tabMinWidth, 0, tabPadding, ' ', 0)
+		fmt.Fprintln(tw, "SERVER\tTCP PORT\tGUID\tMAC\tANSWERS\tBEACONS\tPVs ANSWERED")
+		for _, s := range doc.EPICS.PVAServers {
+			fmt.Fprintf(tw, "%s\t%d\t%s\t%s\t%d\t%d\t%s\n", s.Address, s.TCPPort, s.GUID, dash(s.MAC), s.Answers, s.Beacons, dash(strings.Join(s.PVs, ",")))
+		}
+		if err := tw.Flush(); err != nil {
+			return err
+		}
+	}
+	if unanswered := unansweredPVASearches(doc.EPICS.PVASearches); len(unanswered) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "PVA SEARCHES WITHOUT OBSERVED RESPONSE (absence of a reply is not proof the PV does not exist)")
+		for _, s := range unanswered {
+			fmt.Fprintf(w, "%s from %s (x%d)\n", s.PV, s.Client, s.Count)
+		}
+	}
 	if unanswered := unansweredSearches(doc.EPICS.CASearches); len(unanswered) > 0 {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "CA SEARCHES WITHOUT OBSERVED RESPONSE (absence of a reply is not proof the PV does not exist)")
@@ -248,6 +267,16 @@ func refs(rs []output.Ref) string {
 	return "  [" + rs[0].Source + " " + strings.Join(parts, ",") + "]"
 }
 
+func unansweredPVASearches(ss []output.PVASearch) []output.PVASearch {
+	var out []output.PVASearch
+	for _, s := range ss {
+		if len(s.Answers) == 0 {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 func unansweredSearches(ss []output.CASearch) []output.CASearch {
 	var out []output.CASearch
 	for _, s := range ss {
@@ -287,6 +316,28 @@ func EPICSEvent(w io.Writer, e output.Event) {
 		line(&b, "Server", str("server"))
 		line(&b, "Client", str("dst"))
 		line(&b, "Search ID", str("search_id"))
+	case "pva.search":
+		b.WriteString("PVA SEARCH\n")
+		line(&b, "Client", str("src"))
+		line(&b, "Destination", str("dst"))
+		if cs, ok := f["channels"].([]string); ok {
+			line(&b, "PV", strings.Join(cs, ", "))
+		}
+		line(&b, "Sequence", str("sequence_id"))
+	case "pva.search_response":
+		b.WriteString("PVA SEARCH RESPONSE\n")
+		line(&b, "Server", str("server"))
+		line(&b, "TCP port", str("server_tcp_port"))
+		line(&b, "GUID", str("guid"))
+		line(&b, "Found", str("found"))
+		line(&b, "Client", str("dst"))
+		line(&b, "Sequence", str("sequence_id"))
+	case "pva.beacon":
+		b.WriteString("PVA BEACON\n")
+		line(&b, "Server", str("server"))
+		line(&b, "TCP port", str("server_tcp_port"))
+		line(&b, "GUID", str("guid"))
+		line(&b, "Change count", str("change_count"))
 	default:
 		b.WriteString(strings.ToUpper(strings.ReplaceAll(e.Kind, "_", " ")) + "\n")
 		line(&b, "Summary", e.Summary)

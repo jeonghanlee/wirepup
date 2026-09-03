@@ -72,6 +72,8 @@
   "conflicts": [],
   "epics": {
     "ca_servers": [],
-    "ca_searches": []
+    "ca_searches": [],
+    "pva_servers": [],
+    "pva_searches": []
   }
 }

@@ -35,6 +35,7 @@ var protocolFilters = map[string]protocolFilter{
 	"ndp":   {rules: []bpf.Rule{{EtherType: etherTypeIPv6, IPProto: ipProtoICMPv6}}, displays: []string{"icmpv6"}},
 	"tcp":   {rules: []bpf.Rule{{EtherType: etherTypeIPv4, IPProto: ipProtoTCP}}, displays: []string{"tcp"}},
 	"ca":    {rules: []bpf.Rule{{EtherType: etherTypeIPv4, IPProto: ipProtoUDP, Port: 5064}, {EtherType: etherTypeIPv4, IPProto: ipProtoUDP, Port: 5065}, {EtherType: etherTypeIPv4, IPProto: ipProtoTCP, Port: 5064}}, displays: []string{"epics.ca"}},
+	"pva":   {rules: []bpf.Rule{{EtherType: etherTypeIPv4, IPProto: ipProtoUDP, Port: 5076}, {EtherType: etherTypeIPv4, IPProto: ipProtoTCP, Port: 5075}}, displays: []string{"epics.pva"}},
 }
 
 // hiddenProtocols are shown only in verbose mode or when requested.

@@ -61,7 +61,7 @@
     },
     {
       "code": "ca-server-claims",
-      "text": "10.20.4.31 (TCP 5064) claims DUP:PV",
+      "text": "CA server 10.20.4.31 (TCP 5064) claims DUP:PV",
       "evidence": [
         {
           "source": "../../testdata/pcap/ca-duplicate-servers.pcap",
@@ -71,7 +71,7 @@
     },
     {
       "code": "ca-server-claims",
-      "text": "10.20.4.32 (TCP 5064) claims DUP:PV",
+      "text": "CA server 10.20.4.32 (TCP 5064) claims DUP:PV",
       "evidence": [
         {
           "source": "../../testdata/pcap/ca-duplicate-servers.pcap",

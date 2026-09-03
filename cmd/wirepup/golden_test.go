@@ -40,6 +40,11 @@ var goldenCases = []struct {
 	{"ca-beacon.events", []string{"epics", "observe", "--pcap", filepath.Join(fixtureDir, "ca-beacon.pcap"), "--json", "--quiet"}},
 	{"ca-duplicate-servers.find", []string{"epics", "find", "DUP:PV", "--pcap", filepath.Join(fixtureDir, "ca-duplicate-servers.pcap"), "--json", "--quiet"}},
 	{"ca-search-no-response.find", []string{"epics", "find", "MISSING:PV", "--pcap", filepath.Join(fixtureDir, "ca-search-no-response.pcap"), "--json", "--quiet"}},
+	{"pva-search-response.events", []string{"epics", "observe", "--pcap", filepath.Join(fixtureDir, "pva-search-response.pcap"), "--json", "--quiet"}},
+	{"pva-search-response.devices", []string{"read", "--devices", "--json", "--quiet", "--oui-file", ouiFixture, filepath.Join(fixtureDir, "pva-search-response.pcap")}},
+	{"pva-search-response.find", []string{"epics", "find", "MPS:SYS:STATE", "--pcap", filepath.Join(fixtureDir, "pva-search-response.pcap"), "--json", "--quiet"}},
+	{"pva-beacon.events", []string{"epics", "observe", "--pcap", filepath.Join(fixtureDir, "pva-beacon.pcap"), "--json", "--quiet"}},
+	{"pva-tcp-handshake.events", []string{"read", "--json", "--quiet", "--verbose", filepath.Join(fixtureDir, "pva-tcp-handshake.pcap")}},
 }
 
 func TestGoldenJSON(t *testing.T) {
@@ -152,5 +157,28 @@ func TestEPICSCommands(t *testing.T) {
 	}
 	if code, _, errs := runCLI(t, "epics", "find", "X:Y", "--active", "--to", "junk", "--yes"); code != exitUsage || !strings.Contains(errs, "--to") {
 		t.Fatalf("bad destination %d %s", code, errs)
+	}
+}
+
+func TestEPICSPVACommands(t *testing.T) {
+	pcap := filepath.Join(fixtureDir, "pva-search-response.pcap")
+	code, out, _ := runCLI(t, "epics", "observe", "--pcap", pcap, "--quiet")
+	if code != exitOK || !strings.Contains(out, "PVA SEARCH\n") || !strings.Contains(out, "PVA SEARCH RESPONSE") || !strings.Contains(out, "GUID         57697265507570000000000") {
+		t.Fatalf("pva observe exit %d:\n%s", code, out)
+	}
+	code, out, _ = runCLI(t, "epics", "find", "MPS:SYS:STATE", "--pcap", pcap, "--quiet")
+	if code != exitOK || !strings.Contains(out, "PVA server 10.20.4.31 answered for MPS:SYS:STATE: TCP port 5075") {
+		t.Fatalf("pva find exit %d:\n%s", code, out)
+	}
+	code, out, _ = runCLI(t, "read", "--devices", "--quiet", pcap)
+	if code != exitOK || !strings.Contains(out, "PVA SERVERS") || !strings.Contains(out, "PVA SEARCHES WITHOUT OBSERVED RESPONSE") || !strings.Contains(out, "MISSING:PV from 10.20.4.88:40000 (x1)") {
+		t.Fatalf("pva tables:\n%s", out)
+	}
+	code, out, _ = runCLI(t, "read", "--quiet", filepath.Join(fixtureDir, "pva-tcp-handshake.pcap"))
+	if code != exitOK || !strings.Contains(out, "pva set_byte_order tcp") || !strings.Contains(out, "pva validation request from server 10.20.4.31:5075 authnz anonymous,ca") || !strings.Contains(out, "pva create channel MPS:SYS:STATE") {
+		t.Fatalf("pva tcp:\n%s", out)
+	}
+	if code, _, errs := runCLI(t, "epics", "find", "X:Y", "--active", "--to", "10.0.0.1", "--search", "http", "--yes"); code != exitUsage || !strings.Contains(errs, "--search") {
+		t.Fatalf("bad search protocol %d %s", code, errs)
 	}
 }

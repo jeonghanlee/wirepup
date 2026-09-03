@@ -13,6 +13,7 @@ import (
 	"github.com/jeonghanlee/wirepup/internal/device"
 	"github.com/jeonghanlee/wirepup/internal/diagnose"
 	"github.com/jeonghanlee/wirepup/internal/epics/ca"
+	"github.com/jeonghanlee/wirepup/internal/epics/pva"
 	"github.com/jeonghanlee/wirepup/internal/interfaces"
 	"github.com/jeonghanlee/wirepup/internal/observation"
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
@@ -164,8 +165,71 @@ type Devices struct {
 
 // EPICS is the controls-protocol view of a capture.
 type EPICS struct {
-	CAServers  []CAServer `json:"ca_servers"`
-	CASearches []CASearch `json:"ca_searches"`
+	CAServers   []CAServer  `json:"ca_servers"`
+	CASearches  []CASearch  `json:"ca_searches"`
+	PVAServers  []PVAServer `json:"pva_servers"`
+	PVASearches []PVASearch `json:"pva_searches"`
+}
+
+// PVAServer is one PVAccess server identified by GUID.
+type PVAServer struct {
+	GUID        string    `json:"guid"`
+	Address     string    `json:"address"`
+	TCPPort     uint16    `json:"tcp_port"`
+	Protocol    string    `json:"protocol"`
+	MAC         string    `json:"mac,omitempty"`
+	PVs         []string  `json:"pvs_answered"`
+	Answers     int       `json:"search_answers"`
+	Beacons     int       `json:"beacons"`
+	ChangeCount uint16    `json:"change_count"`
+	FirstSeen   time.Time `json:"first_seen"`
+	LastSeen    time.Time `json:"last_seen"`
+	Ref         Ref       `json:"evidence"`
+}
+
+// PVASearch is one PVA channel search with its answers.
+type PVASearch struct {
+	Client     string        `json:"client"`
+	ClientMAC  string        `json:"client_mac,omitempty"`
+	SequenceID int32         `json:"sequence_id"`
+	InstanceID int32         `json:"instance_id"`
+	PV         string        `json:"pv"`
+	Count      int           `json:"count"`
+	FirstSeen  time.Time     `json:"first_seen"`
+	LastSeen   time.Time     `json:"last_seen"`
+	Answers    []PVAResponse `json:"answers"`
+	NotFound   []PVAResponse `json:"not_found"`
+	Ref        Ref           `json:"evidence"`
+}
+
+// PVAResponse is one PVA server answer.
+type PVAResponse struct {
+	GUID    string    `json:"guid"`
+	Server  string    `json:"server"`
+	TCPPort uint16    `json:"tcp_port"`
+	MAC     string    `json:"mac,omitempty"`
+	At      time.Time `json:"time"`
+	Ref     Ref       `json:"evidence"`
+}
+
+// PVAFrom converts the PVA state of a table.
+func PVAFrom(servers []device.PVAServer, searches []device.PVASearch) ([]PVAServer, []PVASearch) {
+	vs := make([]PVAServer, 0, len(servers))
+	for _, s := range servers {
+		vs = append(vs, PVAServer{GUID: s.GUID, Address: s.Addr.String(), TCPPort: s.TCPPort, Protocol: s.Protocol, MAC: s.MAC, PVs: emptyList(s.PVs), Answers: s.Answers, Beacons: s.Beacons, ChangeCount: s.ChangeCount, FirstSeen: s.FirstSeen, LastSeen: s.LastSeen, Ref: refFrom(s.Ref)})
+	}
+	ss := make([]PVASearch, 0, len(searches))
+	for _, s := range searches {
+		ps := PVASearch{Client: fmt.Sprintf("%s:%d", s.ClientIP, s.ClientPort), ClientMAC: s.ClientMAC, SequenceID: s.SequenceID, InstanceID: s.InstanceID, PV: s.PV, Count: s.Count, FirstSeen: s.FirstSeen, LastSeen: s.LastSeen, Answers: []PVAResponse{}, NotFound: []PVAResponse{}, Ref: refFrom(s.Ref)}
+		for _, r := range s.Responses {
+			ps.Answers = append(ps.Answers, PVAResponse{GUID: r.GUID, Server: r.ServerAddr.String(), TCPPort: r.ServerPort, MAC: r.ServerMAC, At: r.At, Ref: refFrom(r.Ref)})
+		}
+		for _, r := range s.NotFound {
+			ps.NotFound = append(ps.NotFound, PVAResponse{GUID: r.GUID, Server: r.ServerAddr.String(), TCPPort: r.ServerPort, MAC: r.ServerMAC, At: r.At, Ref: refFrom(r.Ref)})
+		}
+		ss = append(ss, ps)
+	}
+	return vs, ss
 }
 
 // CAServer is one Channel Access server seen on the wire.
@@ -464,6 +528,52 @@ func EventFrom(o observation.Observation) Event {
 			e.Fields["rights"] = v.Rights
 		}
 		e.Summary = caSummary(v)
+	case pva.Observation:
+		e.Fields["command"] = v.CommandName()
+		e.Fields["control"] = v.Control
+		e.Fields["version"] = v.Version
+		e.Fields["big_endian"] = v.BigEndian
+		e.Fields["transport"] = v.Transport
+		e.Fields["direction"] = v.Direction
+		e.Fields["src"] = fmt.Sprintf("%s:%d", v.Src, v.SrcPort)
+		e.Fields["dst"] = fmt.Sprintf("%s:%d", v.Dst, v.DstPort)
+		e.Fields["payload_size"] = v.PayloadSize
+		e.Fields["malformed"] = v.Malformed
+		switch v.Kind() {
+		case "pva.search":
+			e.Fields["sequence_id"] = v.SequenceID
+			e.Fields["reply_required"] = v.ReplyRequired
+			e.Fields["unicast"] = v.Unicast
+			e.Fields["protocols"] = emptyList(v.Protocols)
+			e.Fields["channels"] = channelList(v.Channels)
+		case "pva.search_response":
+			e.Fields["sequence_id"] = v.SequenceID
+			e.Fields["guid"] = v.GUID
+			e.Fields["server"] = v.ServerAddr.String()
+			e.Fields["server_tcp_port"] = v.ServerPort
+			e.Fields["protocol"] = v.Protocol
+			e.Fields["found"] = v.Found
+			e.Fields["instance_ids"] = int32List(v.InstanceIDs)
+		case "pva.beacon":
+			e.Fields["guid"] = v.GUID
+			e.Fields["server"] = v.ServerAddr.String()
+			e.Fields["server_tcp_port"] = v.ServerPort
+			e.Fields["protocol"] = v.Protocol
+			e.Fields["beacon_sequence"] = v.BeaconSeq
+			e.Fields["change_count"] = v.ChangeCount
+		case "pva.validation_request", "pva.validation_response":
+			e.Fields["buffer_size"] = v.BufferSize
+			e.Fields["registry_max"] = v.RegistryMax
+			e.Fields["qos"] = v.QoS
+			e.Fields["authnz"] = emptyList(v.AuthNZ)
+		case "pva.create_channel":
+			e.Fields["channels"] = channelList(v.Channels)
+		case "pva.create_channel_response":
+			e.Fields["client_channel_id"] = v.ClientChanID
+			e.Fields["server_channel_id"] = v.ServerChanID
+			e.Fields["status_ok"] = v.StatusOK
+		}
+		e.Summary = pvaSummary(v)
 	case dhcpv4.Observation:
 		e.Fields["message_type"] = v.TypeName()
 		e.Fields["xid"] = fmt.Sprintf("0x%08x", v.XID)
@@ -495,6 +605,54 @@ func dhcpSummary(v dhcpv4.Observation) string {
 	default:
 		return fmt.Sprintf("dhcp %s from %s (%s)", v.TypeName(), v.ClientMAC, dashIf(v.Hostname))
 	}
+}
+
+func channelList(cs []pva.Channel) []string {
+	out := make([]string, 0, len(cs))
+	for _, c := range cs {
+		out = append(out, fmt.Sprintf("%d:%s", c.ID, c.Name))
+	}
+	return out
+}
+
+func int32List(ids []int32) []int32 {
+	if ids == nil {
+		return []int32{}
+	}
+	return ids
+}
+
+func pvaSummary(v pva.Observation) string {
+	switch v.Kind() {
+	case "pva.search":
+		return fmt.Sprintf("pva search %s from %s:%d to %s:%d seq %d", strings.Join(channelNames(v.Channels), ","), v.Src, v.SrcPort, v.Dst, v.DstPort, v.SequenceID)
+	case "pva.search_response":
+		found := "found"
+		if !v.Found {
+			found = "not found"
+		}
+		return fmt.Sprintf("pva search response seq %d %s from server %s tcp port %d guid %s to %s:%d", v.SequenceID, found, v.ServerAddr, v.ServerPort, v.GUID, v.Dst, v.DstPort)
+	case "pva.beacon":
+		return fmt.Sprintf("pva beacon from server %s tcp port %d guid %s seq %d change %d", v.ServerAddr, v.ServerPort, v.GUID, v.BeaconSeq, v.ChangeCount)
+	case "pva.create_channel":
+		return fmt.Sprintf("pva create channel %s %s:%d -> %s:%d", strings.Join(channelNames(v.Channels), ","), v.Src, v.SrcPort, v.Dst, v.DstPort)
+	case "pva.create_channel_response":
+		return fmt.Sprintf("pva channel created client %d server %d ok=%v from %s:%d", v.ClientChanID, v.ServerChanID, v.StatusOK, v.Src, v.SrcPort)
+	case "pva.validation_request":
+		return fmt.Sprintf("pva validation request from server %s:%d authnz %s", v.Src, v.SrcPort, strings.Join(v.AuthNZ, ","))
+	case "pva.validation_response":
+		return fmt.Sprintf("pva validation response from client %s:%d authnz %s", v.Src, v.SrcPort, strings.Join(v.AuthNZ, ","))
+	default:
+		return fmt.Sprintf("pva %s %s %s:%d -> %s:%d", v.CommandName(), v.Transport, v.Src, v.SrcPort, v.Dst, v.DstPort)
+	}
+}
+
+func channelNames(cs []pva.Channel) []string {
+	out := make([]string, 0, len(cs))
+	for _, c := range cs {
+		out = append(out, c.Name)
+	}
+	return out
 }
 
 func caSummary(v ca.Observation) string {
@@ -732,6 +890,7 @@ func NeighborFrom(n device.Neighbor) Neighbor {
 func DevicesFrom(source string, at time.Time, ouiFile string, t *device.Table) Devices {
 	ds, ns, cs := t.Devices(), t.Neighbors(), t.Conflicts()
 	out := Devices{Schema: SchemaDevices, Source: source, GeneratedAt: at, OUIFile: ouiFile, Devices: make([]Device, 0, len(ds)), Neighbors: make([]Neighbor, 0, len(ns)), Conflicts: make([]Conflict, 0, len(cs)), EPICS: EPICSFrom(t.CAServers(), t.CASearches())}
+	out.EPICS.PVAServers, out.EPICS.PVASearches = PVAFrom(t.PVAServers(), t.PVASearches())
 	for _, d := range ds {
 		out.Devices = append(out.Devices, DeviceFrom(d))
 	}

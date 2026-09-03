@@ -10,6 +10,7 @@ import (
 
 	"github.com/jeonghanlee/wirepup/internal/capture"
 	"github.com/jeonghanlee/wirepup/internal/epics/ca"
+	"github.com/jeonghanlee/wirepup/internal/epics/pva"
 	"github.com/jeonghanlee/wirepup/internal/observation"
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
 	"github.com/jeonghanlee/wirepup/internal/protocol/dhcpv4"
@@ -33,6 +34,7 @@ const (
 	ProtoDHCP     = "dhcp"
 	ProtoTCP      = "tcp"
 	ProtoCA       = "epics.ca"
+	ProtoPVA      = "epics.pva"
 )
 
 // Transport names in EPICS observations.
@@ -45,10 +47,12 @@ const (
 type Ports struct {
 	CAServer   uint16
 	CARepeater uint16
+	PVAUDP     uint16
+	PVATCP     uint16
 }
 
 // DefaultPorts are the EPICS defaults.
-var DefaultPorts = Ports{CAServer: ca.DefaultServerPort, CARepeater: ca.DefaultRepeaterPort}
+var DefaultPorts = Ports{CAServer: ca.DefaultServerPort, CARepeater: ca.DefaultRepeaterPort, PVAUDP: pva.DefaultUDPPort, PVATCP: pva.DefaultTCPPort}
 
 // Stats counts what the pipeline saw.
 type Stats struct {
@@ -239,8 +243,39 @@ func (d *Decoder) decodeUDP(ev observation.Evidence, ip ipv4.Packet, payload []b
 		}
 	case isPort(dg, d.ports.CAServer) || isPort(dg, d.ports.CARepeater):
 		obs = append(obs, d.decodeCA(ev, transportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.Confirmed)...)
+	case isPort(dg, d.ports.PVAUDP):
+		obs = append(obs, d.decodePVA(ev, transportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.Confirmed)...)
+	case pva.Probable(dg.Payload):
+		obs = append(obs, d.decodePVA(ev, transportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.StrongHint)...)
 	case len(dg.Payload) >= ca.HeaderLen && ca.Probable(dg.Payload):
 		obs = append(obs, d.decodeCA(ev, transportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.StrongHint)...)
+	}
+	return obs
+}
+
+// decodePVA parses every PVA message in the buffer; a buffer that does
+// not start with a valid header is not PVA whatever the port says.
+func (d *Decoder) decodePVA(ev observation.Evidence, transport string, src, dst netip.Addr, srcPort, dstPort uint16, payload []byte, conf observation.Confidence) []observation.Observation {
+	msgs, err := pva.Parse(payload)
+	if len(msgs) == 0 {
+		return nil
+	}
+	if err != nil {
+		if transport == transportUDP {
+			return nil
+		}
+		conf = observation.StrongHint
+	}
+	ev.Protocol = ProtoPVA
+	ev.Confidence = conf
+	var obs []observation.Observation
+	for _, m := range msgs {
+		o := pva.Interpret(m, transport, src, dst, srcPort, dstPort)
+		o.Evidence = ev
+		if o.Malformed && o.Evidence.Confidence == observation.Confirmed {
+			o.Evidence.Confidence = observation.StrongHint
+		}
+		obs = append(obs, o)
 	}
 	return obs
 }
@@ -262,7 +297,14 @@ func (d *Decoder) decodeTCP(ev observation.Evidence, src, dst netip.Addr, payloa
 	if len(seg.Payload) == 0 {
 		return obs
 	}
-	if seg.SrcPort == d.ports.CAServer || seg.DstPort == d.ports.CAServer {
+	switch {
+	case seg.SrcPort == d.ports.PVATCP || seg.DstPort == d.ports.PVATCP || pva.Probable(seg.Payload):
+		conf := observation.Confirmed
+		if seg.SrcPort != d.ports.PVATCP && seg.DstPort != d.ports.PVATCP {
+			conf = observation.StrongHint
+		}
+		obs = append(obs, d.decodePVA(ev, transportTCP, src, dst, seg.SrcPort, seg.DstPort, seg.Payload, conf)...)
+	case seg.SrcPort == d.ports.CAServer || seg.DstPort == d.ports.CAServer:
 		obs = append(obs, d.decodeCA(ev, transportTCP, src, dst, seg.SrcPort, seg.DstPort, seg.Payload, observation.Confirmed)...)
 	}
 	return obs
