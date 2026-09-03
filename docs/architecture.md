@@ -364,6 +364,7 @@ cmd/wirepup/                 entry point: flag parsing, subcommand dispatch, exi
 
 internal/capture/            Packet, Source interface, link types
 internal/capture/afpacket/   Linux AF_PACKET live source: receive only, BPF attach, PACKET_AUXDATA
+internal/capture/bpf/        classic BPF assembler for the kernel filter
 internal/capture/pcapfile/   PCAP/PCAPNG read and write over gopacket/pcapgo
 
 internal/observation/        Evidence, Confidence, Kind (ADR-0008)
@@ -392,11 +393,16 @@ internal/output/text/        human-readable renderer
 internal/output/json/        JSON renderer (ADR-0009)
 internal/tui/                terminal view (M10)
 
-internal/active/             packet transmission: ARP probe, ICMP, explicit CA/PVA search
+internal/active/             packet transmission: ARP probe and sweep, explicit CA/PVA search
 internal/networkcfg/         temporary address session over iproute2 (ADR-0010)
 
-testdata/fixtures/           byte fixtures, one directory per protocol
-testdata/pcap/               replay captures
+internal/fixtures/           frame builders shared by tests and the fixture generator
+internal/boundary/           import-graph test that keeps active code out of passive packages
+
+testdata/fixtures/           byte fixtures (OUI registry sample)
+testdata/pcap/               replay captures written by testdata/gen
+testdata/golden/             JSON outputs pinned by the golden tests
+testdata/gen/                generator for testdata/pcap
 ```
 
 Rules that the layout enforces:

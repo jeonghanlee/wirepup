@@ -32,11 +32,11 @@ Wraps what exists today into a catalog: `gofmt`, `go vet`, unit and fixture test
 
 ### protocol-conformance
 
-Replaces self-generated fixtures as the wire-format truth. Captures are taken with tcpdump on a golden VM while the real implementations talk: EPICS Base `caget`, `camonitor`, and `softIoc` for CA; pvxs `pvxget` and `softIocPVX` for PVA; `dnsmasq` and `dhclient` for DHCPv4; `lldpd` for LLDP; the kernel for ARP probing, NDP, and DAD. Each capture is sanitized, committed under `testdata/pcap/real/`, and decoded twice: `tshark -T json` is the independent oracle, and a test compares the fields WirePup claims (PV name, search id, server port, GUID, DHCP message type, LLDP system name, and so on) with the oracle's fields. The existing generated fixtures stay for negative and truncation cases.
+Replaces self-generated fixtures as the wire-format truth. Captures are taken with tcpdump on a golden VM while the real implementations talk: EPICS Base `caget`, `camonitor`, and `softIoc` for CA; pvxs `pvxget` and `softIocPVX` for PVA; `dnsmasq` and the distribution's DHCP client (`dhcpcd` on Debian 13, `dhclient` where it still ships) for DHCPv4; `lldpd` for LLDP; the kernel for ARP probing, NDP, and DAD. Each capture is sanitized, committed under `testdata/pcap/real/`, and decoded twice: `tshark -T json` is the independent oracle, and a test compares the fields WirePup claims (PV name, search id, server port, GUID, DHCP message type, LLDP system name, and so on) with the oracle's fields. The existing generated fixtures stay for negative and truncation cases.
 
 ### error-contract
 
-Exercises the shipped command path with invalid or unsafe input and checks the exit code and message: unknown command or flag (2), missing `CAP_NET_RAW` (3), unreadable or corrupt capture file (1), target not observed (5), conflicting address (6), `connect` and `tui` without a terminal (2), `--search` and `--to` validation, oversized `--arp` prefixes. Most of this exists as Go tests; the suite gives it a catalog and machine records.
+Exercises the shipped command path with invalid or unsafe input and checks the exit code and message: unknown command or flag (2), missing `CAP_NET_RAW` (3), a missing or unreadable capture file (1), a capture file that ends inside a packet (4), target not observed (5), conflicting address (6), `connect` and `tui` without a terminal (2), `--search` and `--to` validation, oversized `--arp` prefixes. Most of this exists as Go tests; the suite gives it a catalog and machine records.
 
 ### lab-lifecycle
 
@@ -51,7 +51,7 @@ The only suite that needs root, and the one that covers what unit tests cannot: 
       |             |             |
 +-----+----+  +-----+----+  +-----+----+
 | laptop   |  | device   |  | ioc      |
-| wirepup  |  | dhclient |  | softIoc  |
+| wirepup  |  | dhcp cli.|  | softIoc  |
 |          |  | Auto-IP  |  | softIocPVX
 +----------+  +----------+  +----------+
 ```
@@ -71,7 +71,7 @@ Reads the installed host: the binary is statically linked (`ldd` reports not a d
 
 ## Infrastructure
 
-The `cloud-provision` golden images already carry what the lab needs: the `*-epics-dev` variants include EPICS Base and pvxs, so `softIoc`, `softIocPVX`, `caget`, and `pvxget` run inside the VM without a container. The OS matrix follows `epics-ioc-runner` (`rocky8` and `debian13` by default; `rocky10`, `debian12`, `ubuntu24`, `ubuntu26` as the extended matrix). Rocky 8's kernel is the oldest target and fixes the minimum for `AF_PACKET` and `PACKET_AUXDATA` behavior.
+The `cloud-provision` images provide what the lab needs in two forms. The `*-iocrunner` goldens are baked with an installed EPICS-env whose `epics_env_version` and `epics_base_version` are recorded in the image manifest (`bin/bake_iocrunner_image.bash`). The `*-epics-dev` VMs get EPICS-env built in place by `bin/run_epics_env_build.bash` (playbook `playbooks/species/epics_dev.yml` of `ansible-provision`); until that step has run they carry no EPICS. EPICS-env includes EPICS Base and pvxs (`epics-base-src`, `pvxs-src`), so `softIoc`, `caget`, `camonitor`, `softIocPVX`, and `pvxget` are available inside either kind of VM without a container. The OS matrix follows `epics-ioc-runner` (`rocky8` and `debian13` by default; `rocky10`, `debian12`, `ubuntu24`, `ubuntu26` as the extended matrix). Rocky 8's kernel is the oldest target and fixes the minimum for `AF_PACKET` and `PACKET_AUXDATA` behavior.
 
 The lab script (`tests/lib/netns-lab.bash`) creates and destroys the namespaces, installs `dnsmasq`, `lldpd`, and the EPICS actors into them, and leaves nothing behind on exit; it is the outermost boundary for the whole suite and is itself covered by a self-test.
 

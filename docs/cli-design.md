@@ -61,87 +61,92 @@ wirepup read issue.pcap --protocol pva
 
 ```bash
 wirepup diagnose -i enp3s0
-wirepup diagnose --pcap issue.pcap
-wirepup diagnose --epics
+wirepup diagnose 192.168.1.100 -i enp3s0
+wirepup diagnose --pcap issue.pcap --local 10.20.30.51/24
+wirepup diagnose --epics -i enp3s0
+wirepup diagnose --pcap a.pcap,b.pcap --epics
 ```
 
-Passive unless an explicit active option is selected.
+Passive. A live run observes for `--timeout` (default 10 s) and then applies the rules; a capture file needs `--local` for the capture host's prefixes. Several interfaces or files, comma-separated, feed one report so that discovery activity can be compared between sources. With a target address the exit code is 5 when the target was not observed.
 
 ## `wirepup epics`
 
-Possible subcommands:
-
-```text
-wirepup epics observe
-wirepup epics diagnose
-wirepup epics find <PV>
+```bash
+wirepup epics observe -i enp3s0
+wirepup epics observe --pcap issue.pcap --protocol ca
+wirepup epics diagnose -i enp3s0
+wirepup epics find MPS:SYS:STATE -i enp3s0
+wirepup epics find MPS:SYS:STATE --pcap issue.pcap
+wirepup epics find MPS:SYS:STATE --active -i enp3s0
+wirepup epics find MPS:SYS:STATE --active --to 10.20.4.255,10.30.0.31:5064 --search ca
 ```
 
-`find <PV>` must clearly distinguish:
-
-- passive observation of existing searches;
-- explicit active CA/PVA search initiated by WirePup.
+`observe` prints CA and PVA messages as labelled blocks; `diagnose` is `wirepup diagnose --epics`. `find` is passive by default: it reports the searches and answers seen for the PV. With `--active` it sends one CA and one PVA search datagram per printed destination (the interface's directed broadcasts unless `--to` names hosts), asks for confirmation unless `--yes`, and reports what was sent under `Executed`. Exit code 5 means nothing was observed or answered.
 
 ## `wirepup probe`
 
 Explicit active discovery.
 
 ```bash
-wirepup probe -i enp3s0 --arp
+wirepup probe -i enp3s0 --arp 192.168.1.0/24
+wirepup probe -i enp3s0 --arp 192.168.1.0/24 --yes
 ```
 
-The command must report what it will transmit.
+The prefix is required and may not be larger than a /24. The command prints what it will transmit (one ARP request per host at 20 per second), asks for confirmation unless `--yes`, and lists the replies under `Observed` and the transmission under `Executed`.
 
 ## `wirepup connect`
 
 Explicit temporary addressing workflow.
 
-```text
-$ sudo wirepup connect 192.168.1.100 -i enp3s0
-
-Observed target
-  192.168.1.100
-  MAC 00:80:F4:12:34:56
-
-Current local addresses
-  10.20.30.51/24
-
-Suggested temporary address
-  192.168.1.254/24
-
-Requested action
-  add 192.168.1.254/24 to enp3s0
+```bash
+sudo wirepup connect 192.168.1.100 -i enp3s0
+sudo wirepup connect -i enp3s0 --address 192.168.1.254/24 --yes
 ```
 
-No primary address replacement.
+With a target, the command observes passively for `--timeout` (default 5 s), prints the diagnosis and the exact `ip address add` command it intends to run, asks for confirmation unless `--yes`, sends three RFC 5227 ARP probes for the candidate, refuses with exit code 6 when anything answers, applies the address through iproute2, and records it in `/run/wirepup/session.json` (ADR-0010). `--address` names the address explicitly; the network and broadcast addresses and addresses already configured locally are refused. No primary address is replaced.
 
 ## `wirepup disconnect`
 
-Remove only temporary configuration WirePup previously created.
+```bash
+sudo wirepup disconnect
+sudo wirepup disconnect -i enp3s0 192.168.1.254
+```
+
+Removes only the addresses recorded in the session file, drops the record of an address that is already gone, and never touches anything else.
+
+## `wirepup tui`
+
+```bash
+sudo wirepup tui -i enp3s0
+wirepup tui --pcap issue.pcap
+```
+
+Passive. Five views (Devices, Events, EPICS, Interfaces, Diagnostics) over the same pipeline and rules as the text commands; `q` leaves, `Tab` or `1`-`5` switch views, `j`/`k` scroll by one line, the space bar by ten, `r` returns to the top.
 
 ## Global options
 
-Potential:
-
 ```text
--i, --interface
---json
---quiet
---verbose
---no-resolve
---timeout
+-i, --interface   interface to capture on (comma-separated list for diagnose)
+--pcap            capture file instead of an interface (comma-separated list for diagnose)
+--local           local prefixes of the capture host, for --pcap
+--protocol        comma-separated filter: frame, arp, lldp, ipv4, dhcp, ipv6, ndp, tcp, ca, pva
+--json            machine-readable output (ADR-0009)
+--quiet           no progress messages
+--verbose         include frame, ipv4, ipv6, and tcp observations in observe
+--timeout         stop after this duration
+--no-promisc      leave promiscuous mode off
+--oui-file        IEEE oui.txt for vendor hints (ADR-0011)
+--yes             skip the confirmation of an active command
 ```
 
 ## Exit codes
-
-Proposed:
 
 ```text
 0 success
 1 general error
 2 invalid arguments
 3 insufficient privilege
-4 capture failure
+4 capture failure (live capture error, or a capture file that ends inside a packet)
 5 requested target not observed/reached
 6 unsafe or conflicting requested network change
 ```

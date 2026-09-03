@@ -15,6 +15,10 @@ discover
 capture
 read
 diagnose
+tui
+epics observe
+epics diagnose
+epics find        (without --active)
 ```
 
 Passive means:
@@ -33,6 +37,8 @@ Active behavior belongs in commands such as:
 ```text
 probe
 connect
+disconnect
+epics find --active
 ```
 
 Every active command should:

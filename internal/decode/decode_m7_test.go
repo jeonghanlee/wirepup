@@ -91,3 +91,27 @@ func TestCAOverTCPAndConnectionEvents(t *testing.T) {
 		New("x").Decode(capture.Packet{LinkType: capture.LinkTypeEthernet, Data: data[:n], OriginalLength: len(data)})
 	}
 }
+
+func TestLearnedCATCPPortIsDecoded(t *testing.T) {
+	d := New("x")
+	reply := fixtures.IPv4UDP(fixtures.LaptopMAC, fixtures.ServerMAC, caClient, caServer, 40000, ca.DefaultServerPort, ca.SearchReplyDatagram(7, 5066))
+	d.Decode(fixtures.Packet(0, reply))
+	learned, _ := d.LearnedPorts()
+	if len(learned) != 1 || learned[0] != 5066 {
+		t.Fatalf("learned %v", learned)
+	}
+	name := append([]byte("MPS:SYS:STATE"), 0, 0, 0)
+	hdr := make([]byte, ca.HeaderLen)
+	hdr[1] = ca.CmdCreateChan
+	hdr[3] = byte(len(name))
+	hdr[11] = 5
+	hdr[15] = ca.MinorRevision
+	data := fixtures.IPv4TCP(fixtures.ServerMAC, fixtures.LaptopMAC, caServer, caClient, 5066, 40001, tcp.FlagACK|tcp.FlagPSH, 2, append(hdr, name...))
+	obs := d.Decode(fixtures.Packet(1, data))
+	if len(obs) != 3 || obs[2].Kind() != "ca.create_channel" {
+		t.Fatalf("advertised port not decoded: %+v", obs)
+	}
+	if obs := New("fresh").Decode(fixtures.Packet(1, data)); len(obs) != 2 {
+		t.Fatalf("a decoder that never saw the reply must not claim CA on 5066: %+v", obs)
+	}
+}

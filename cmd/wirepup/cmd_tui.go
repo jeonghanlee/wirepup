@@ -46,7 +46,7 @@ func runTUI(ctx context.Context, e *env, args []string) int {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitUsage
 	}
-	prog, _, err := filterFor(g.protocols)
+	prog, display, err := filterFor(g.protocols)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitCodeFor(err)
@@ -72,7 +72,7 @@ func runTUI(ctx context.Context, e *env, args []string) int {
 		ds, cs, _ := runSource(ctx, src, func(obs []observation.Observation) {
 			table.Apply(obs)
 			for _, o := range obs {
-				if hiddenProtocols[o.Ref().Protocol] && !g.verbose {
+				if !wantObservation(o, display, g.verbose) {
 					continue
 				}
 				model.AddEvent(output.EventFrom(o))

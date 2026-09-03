@@ -117,3 +117,12 @@ func TestTUIRequiresTerminal(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, errs)
 	}
 }
+
+func TestConnectRefusesBroadcastAndNetworkAddresses(t *testing.T) {
+	for _, addr := range []string{"192.0.2.255/24", "192.0.2.0/24"} {
+		code, _, errs := runCLI(t, "connect", "-i", "lo", "--address", addr, "--yes")
+		if code != exitUnsafe || !strings.Contains(errs, "address") {
+			t.Fatalf("%s: exit %d %s", addr, code, errs)
+		}
+	}
+}

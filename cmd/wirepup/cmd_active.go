@@ -340,10 +340,23 @@ func refuseIfConfigured(ctx diagnose.Context, p netip.Prefix) error {
 			return fmt.Errorf("%w: %s is already configured on %s", errUnsafe, p.Addr(), ctx.Interface)
 		}
 	}
-	if p.Addr() == p.Masked().Addr() && p.Bits() < 31 {
-		return fmt.Errorf("%w: %s is the network address", errUnsafe, p.Addr())
+	if p.Bits() < 31 {
+		if p.Addr() == p.Masked().Addr() {
+			return fmt.Errorf("%w: %s is the network address", errUnsafe, p.Addr())
+		}
+		if p.Addr() == broadcastOf(p) {
+			return fmt.Errorf("%w: %s is the broadcast address", errUnsafe, p.Addr())
+		}
 	}
 	return nil
+}
+
+// broadcastOf returns the last address of an IPv4 prefix.
+func broadcastOf(p netip.Prefix) netip.Addr {
+	a := p.Masked().Addr().As4()
+	v := uint32(a[0])<<24 | uint32(a[1])<<16 | uint32(a[2])<<8 | uint32(a[3])
+	v |= uint32(0xffffffff) >> p.Bits()
+	return netip.AddrFrom4([4]byte{byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v)})
 }
 
 func renderReport(e *env, g *globalFlags, source string, r diagnose.Report) {

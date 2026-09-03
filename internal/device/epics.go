@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/netip"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/jeonghanlee/wirepup/internal/epics/ca"
@@ -321,7 +322,7 @@ func (t *Table) applyCA(frame *ethernet.Observation, v ca.Observation) []Event {
 		if dev != nil {
 			addProtocol(dev, ProtoCAServer)
 			if v.Transport == "udp" {
-				events = append(events, t.addAddress(dev, v.Src, StateObserved, "CA "+v.CommandName(), "", v.Timestamp, ref)...)
+				events = append(events, t.addAddress(dev, v.Src, StateObserved, "CA "+strings.ReplaceAll(string(v.Kind())[3:], "_", " "), "", v.Timestamp, ref)...)
 			}
 		}
 		resp := CAResponse{ServerIP: v.ServerIP, ServerMAC: mac, TCPPort: v.ServerPort, At: v.Timestamp, Ref: ref}

@@ -110,6 +110,7 @@ wirepup capture       # capture to PCAP/PCAPNG
 wirepup read          # offline packet analysis
 wirepup diagnose      # rule-based diagnosis
 wirepup epics         # CA/PVA focused tools
+wirepup tui           # interactive terminal view
 
 wirepup probe         # explicitly active discovery
 wirepup connect       # explicitly change local secondary IP
@@ -224,8 +225,15 @@ wirepup/
 │   ├── codex-m0-bootstrap.md
 │   ├── cross-review.md
 │   └── full-repository-review.md
-├── testdata/
-└── internal/             # created during implementation
+├── Makefile
+├── go.mod
+├── cmd/wirepup/          # CLI entry point
+├── internal/             # capture, decode, protocol parsers, device, diagnose, output, active, networkcfg, tui
+└── testdata/
+    ├── fixtures/
+    ├── gen/
+    ├── golden/
+    └── pcap/
 ```
 
 ## Development order

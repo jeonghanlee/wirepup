@@ -62,18 +62,37 @@ type Stats struct {
 	Skipped   uint64 // link types the pipeline does not decode
 }
 
-// Decoder is the per-source pipeline state.
+// Decoder is the per-source pipeline state. Server TCP ports learned
+// from search responses and beacons extend the default port hints, so a
+// server advertising a non-default port is still decoded on TCP
+// (docs/architecture.md sections 11 and 12).
 type Decoder struct {
 	source string
 	next   uint64
 	stats  Stats
 	ports  Ports
+	caTCP  map[uint16]bool
+	pvaTCP map[uint16]bool
 }
 
 // New returns a pipeline for one capture source with default ports.
 func New(source string) *Decoder {
-	return &Decoder{source: source, ports: DefaultPorts}
+	return &Decoder{source: source, ports: DefaultPorts, caTCP: map[uint16]bool{}, pvaTCP: map[uint16]bool{}}
 }
+
+// LearnedPorts returns the server TCP ports learned so far.
+func (d *Decoder) LearnedPorts() (ca, pva []uint16) {
+	for p := range d.caTCP {
+		ca = append(ca, p)
+	}
+	for p := range d.pvaTCP {
+		pva = append(pva, p)
+	}
+	return ca, pva
+}
+
+func (d *Decoder) isCATCP(port uint16) bool  { return port == d.ports.CAServer || d.caTCP[port] }
+func (d *Decoder) isPVATCP(port uint16) bool { return port == d.ports.PVATCP || d.pvaTCP[port] }
 
 // SetPorts overrides the EPICS port hints.
 func (d *Decoder) SetPorts(p Ports) { d.ports = p }
@@ -275,6 +294,9 @@ func (d *Decoder) decodePVA(ev observation.Evidence, transport string, src, dst 
 		if o.Malformed && o.Evidence.Confidence == observation.Confirmed {
 			o.Evidence.Confidence = observation.StrongHint
 		}
+		if (o.Command == pva.CmdSearchResponse || o.Command == pva.CmdBeacon) && o.ServerPort != 0 && !o.Malformed {
+			d.pvaTCP[o.ServerPort] = true
+		}
 		obs = append(obs, o)
 	}
 	return obs
@@ -298,13 +320,13 @@ func (d *Decoder) decodeTCP(ev observation.Evidence, src, dst netip.Addr, payloa
 		return obs
 	}
 	switch {
-	case seg.SrcPort == d.ports.PVATCP || seg.DstPort == d.ports.PVATCP || pva.Probable(seg.Payload):
+	case d.isPVATCP(seg.SrcPort) || d.isPVATCP(seg.DstPort) || pva.Probable(seg.Payload):
 		conf := observation.Confirmed
-		if seg.SrcPort != d.ports.PVATCP && seg.DstPort != d.ports.PVATCP {
+		if !d.isPVATCP(seg.SrcPort) && !d.isPVATCP(seg.DstPort) {
 			conf = observation.StrongHint
 		}
 		obs = append(obs, d.decodePVA(ev, transportTCP, src, dst, seg.SrcPort, seg.DstPort, seg.Payload, conf)...)
-	case seg.SrcPort == d.ports.CAServer || seg.DstPort == d.ports.CAServer:
+	case d.isCATCP(seg.SrcPort) || d.isCATCP(seg.DstPort):
 		obs = append(obs, d.decodeCA(ev, transportTCP, src, dst, seg.SrcPort, seg.DstPort, seg.Payload, observation.Confirmed)...)
 	}
 	return obs
@@ -329,6 +351,9 @@ func (d *Decoder) decodeCA(ev observation.Evidence, transport string, src, dst n
 	for _, m := range msgs {
 		o := ca.Interpret(m, transport, src, dst, srcPort, dstPort, d.ports.CAServer)
 		o.Evidence = ev
+		if (o.Kind() == "ca.search_response" || o.Kind() == "ca.beacon") && o.ServerPort != 0 {
+			d.caTCP[o.ServerPort] = true
+		}
 		obs = append(obs, o)
 	}
 	return obs

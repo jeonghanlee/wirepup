@@ -158,7 +158,10 @@ func Sweep(ctx context.Context, iface string, prefix netip.Prefix) (SweepResult,
 	defer s.close()
 	sender, err := senderAddress(iface, prefix)
 	if err != nil {
-		return SweepResult{}, err
+		if !errors.Is(err, ErrNoIPv4) {
+			return SweepResult{}, err
+		}
+		sender = netip.AddrFrom4([4]byte{})
 	}
 	res := SweepResult{Plan: Plan{Interface: s.name, Protocol: "ARP request", Targets: hosts, Count: len(hosts), Rate: RatePerSecond}}
 	seen := map[string]bool{}

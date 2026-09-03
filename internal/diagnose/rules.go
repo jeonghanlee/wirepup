@@ -307,7 +307,11 @@ func (r *Report) sourceRules(table *device.Table) {
 			get(t.Ref.Source)
 		}
 	}
-	if len(per) < 2 {
+	total := 0
+	for _, c := range per {
+		total += c.caSearch + c.caServer + c.pvaSearch + c.pvaServer
+	}
+	if len(per) < 2 || total == 0 {
 		return
 	}
 	srcs := make([]string, 0, len(per))

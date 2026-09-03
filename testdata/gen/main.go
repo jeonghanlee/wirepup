@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jeonghanlee/wirepup/internal/capture"
 	"github.com/jeonghanlee/wirepup/internal/capture/pcapfile"
 	"github.com/jeonghanlee/wirepup/internal/epics/ca"
 	"github.com/jeonghanlee/wirepup/internal/epics/pva"
@@ -158,7 +157,6 @@ func main() {
 		fail(err)
 	}
 	fmt.Printf("%s: %d packets\n", path, len(fixtureSet()[3].frames))
-	_ = capture.LinkTypeEthernet
 }
 
 func fail(err error) {
