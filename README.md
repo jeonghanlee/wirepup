@@ -222,7 +222,8 @@ wirepup/
 ├── prompts/
 │   ├── claude-architecture-review.md
 │   ├── codex-m0-bootstrap.md
-│   └── cross-review.md
+│   ├── cross-review.md
+│   └── full-repository-review.md
 ├── testdata/
 └── internal/             # created during implementation
 ```

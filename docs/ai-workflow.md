@@ -6,6 +6,40 @@ Use multiple agents without allowing each agent to invent a different architectu
 
 The repository documents and ADRs are the shared contract.
 
+## V1 delivery sequence
+
+V1 is delivered as one sequence with two independent full reviews. Phase 1 below is complete once the ADRs are Accepted; the Phase 2 parallel split is not used for V1, and Phase 3 applies to increments after V1.
+
+```text
+design completion
+  ADRs accepted, package layout fixed
+        |
+        v
+Claude: implement V1
+  M0 -> M1 -> ... -> M7 CA -> M8 PVA -> M9 diagnose -> M10 TUI
+        |
+        v
+Claude: full self-review and fixes
+  prompts/full-repository-review.md
+        |
+        v
+git commit
+        |
+        v
+Codex / ChatGPT: independent full review
+  prompts/full-repository-review.md
+        |
+        v
+fixes and tests
+        |
+        v
+release candidate
+```
+
+### Reference rule
+
+When a mechanism is unclear, study how established tools solve the same problem before designing one: Wireshark and tshark for dissection, frame references, and JSON shapes; libpcap (`pcap-linux.c`) for Linux capture details; iproute2 for address changes; the `cashark` Wireshark plugin for CA and PVA framing. Adopt the simpler form that fits the ADRs, and name the source in the ADR or the code comment.
+
 ## Phase 1 — Architecture
 
 ### Claude
