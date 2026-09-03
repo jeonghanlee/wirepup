@@ -65,6 +65,7 @@ Example:
 type Packet struct {
     Timestamp      time.Time
     Interface      string
+    LinkType       LinkType   // DLT value; DLT_EN10MB for Ethernet
     Data           []byte
     CaptureLength  int
     OriginalLength int
@@ -76,7 +77,7 @@ type Source interface {
 }
 ```
 
-The concrete API may evolve during implementation.
+ADR-0002 fixes these fields and the Linux backend; method names may still change during implementation.
 
 ## 4. Decoder model
 
@@ -119,6 +120,8 @@ type Evidence struct {
     Protocol  string
 }
 ```
+
+ADR-0008 fixes this structure and adds `Confidence`. `PacketID` is the 1-based frame number within one capture source and equals the Wireshark frame number of the same file.
 
 ## 6. Device identity
 
@@ -236,6 +239,8 @@ Design goal:
 
 A narrow helper/subprocess is preferable if it materially reduces privilege exposure.
 
+V1 ships one executable without a helper; `connect` and `disconnect` run under `sudo`, and passive packages must not import the active or network-configuration packages (ADR-0010).
+
 ## 11. EPICS CA architecture
 
 CA support lives under:
@@ -303,6 +308,8 @@ strong_hint
 weak_hint
 ```
 
+The definitions are in ADR-0008.
+
 ## 14. Output architecture
 
 Human CLI and JSON should be separate renderers over common result models.
@@ -316,6 +323,8 @@ Potential future renderers:
 - report export.
 
 Protocol decoders must never directly format terminal output.
+
+The JSON renderer is a versioned public contract (ADR-0009).
 
 ## 15. Package dependency direction
 
@@ -341,10 +350,58 @@ Avoid cycles.
 
 ## 16. Capture backend strategy
 
-Initial recommendation:
+Decided in ADR-0002:
 
-- define capture abstraction first;
-- use a mature libpcap-compatible backend for early implementation;
-- preserve an option for native Linux AF_PACKET later.
+- `internal/capture` defines the abstraction (section 3);
+- the Linux live source is a native `AF_PACKET` socket opened through `golang.org/x/sys/unix`, with classic BPF filtering and the 802.1Q tag recovered from `PACKET_AUXDATA`;
+- PCAP and PCAPNG files are read and written with `gopacket/pcapgo`;
+- no cgo and no libpcap in V1; a libpcap-backed source remains possible behind the same interface.
 
-The exact library is intentionally not fixed until ADR-0002 review.
+## 17. Package layout (V1)
+
+```text
+cmd/wirepup/                 entry point: flag parsing, subcommand dispatch, exit codes
+
+internal/capture/            Packet, Source interface, link types
+internal/capture/afpacket/   Linux AF_PACKET live source: receive only, BPF attach, PACKET_AUXDATA
+internal/capture/pcapfile/   PCAP/PCAPNG read and write over gopacket/pcapgo
+
+internal/observation/        Evidence, Confidence, Kind (ADR-0008)
+internal/decode/             frame pipeline: runs parsers in link-layer order, emits observations
+
+internal/protocol/ethernet/  Ethernet II and 802.1Q
+internal/protocol/arp/
+internal/protocol/lldp/
+internal/protocol/ipv4/
+internal/protocol/ipv6/
+internal/protocol/icmpv6/    NDP and DAD
+internal/protocol/udp/
+internal/protocol/tcp/
+internal/protocol/dhcpv4/
+internal/protocol/dns/       DNS and mDNS
+internal/epics/ca/           Channel Access parser and observations
+internal/epics/pva/          PVAccess parser and observations
+
+internal/device/             correlator, Device, timeline (ADR-0004)
+internal/oui/                vendor hints from the external registry file (ADR-0011)
+internal/hostnet/            read-only local interfaces, addresses, routes
+internal/diagnose/           rules; Observed/Inferred/Recommended/Executed result model
+
+internal/output/             result structs shared by every renderer
+internal/output/text/        human-readable renderer
+internal/output/json/        JSON renderer (ADR-0009)
+internal/tui/                terminal view (M10)
+
+internal/active/             packet transmission: ARP probe, ICMP, explicit CA/PVA search
+internal/networkcfg/         temporary address session over iproute2 (ADR-0010)
+
+testdata/fixtures/           byte fixtures, one directory per protocol
+testdata/pcap/               replay captures
+```
+
+Rules that the layout enforces:
+
+- one package per protocol; each exposes a pure parser and its observation types, and has no import of `device`, `diagnose`, `output`, `active`, or `networkcfg`;
+- `capture/afpacket` contains no send path; `active` opens its own socket for transmission;
+- `active` and `networkcfg` are imported only by the `probe`, `connect`, and `disconnect` command paths in `cmd/wirepup`; a test walks the import graph of the passive command paths and fails if either package appears;
+- `output/text`, `output/json`, and `tui` render the same structs from `output`; nothing else formats user-facing text.
