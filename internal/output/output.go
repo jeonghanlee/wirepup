@@ -16,7 +16,9 @@ import (
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
 	"github.com/jeonghanlee/wirepup/internal/protocol/dhcpv4"
 	"github.com/jeonghanlee/wirepup/internal/protocol/ethernet"
+	"github.com/jeonghanlee/wirepup/internal/protocol/icmpv6"
 	"github.com/jeonghanlee/wirepup/internal/protocol/ipv4"
+	"github.com/jeonghanlee/wirepup/internal/protocol/ipv6"
 	"github.com/jeonghanlee/wirepup/internal/protocol/lldp"
 )
 
@@ -74,6 +76,7 @@ type DeviceEvent struct {
 	Via      string    `json:"via"`
 	Method   string    `json:"method,omitempty"`
 	Address  string    `json:"address,omitempty"`
+	VLAN     uint16    `json:"vlan,omitempty"`
 	Device   Device    `json:"device"`
 	Neighbor *Neighbor `json:"neighbor,omitempty"`
 	Ref      Ref       `json:"evidence"`
@@ -122,6 +125,9 @@ type Device struct {
 	FirstSeen    time.Time       `json:"first_seen"`
 	LastSeen     time.Time       `json:"last_seen"`
 	Local        bool            `json:"local"`
+	Router       bool            `json:"ipv6_router"`
+	VLANs        []uint16        `json:"vlans"`
+	VLAN         string          `json:"vlan"`
 	Confidence   string          `json:"confidence"`
 	Timeline     []TimelineEntry `json:"timeline"`
 	WeakOverflow int             `json:"seen_addresses_dropped,omitempty"`
@@ -238,6 +244,42 @@ func EventFrom(o observation.Observation) Event {
 		e.Fields["length"] = v.Length
 		e.Fields["fragment"] = v.Fragment
 		e.Summary = fmt.Sprintf("ipv4 %s -> %s %s len %d ttl %d", v.Src, v.Dst, ipv4.ProtocolName(v.Protocol), v.Length, v.TTL)
+	case ipv6.Observation:
+		e.Fields["src"] = v.Src.String()
+		e.Fields["dst"] = v.Dst.String()
+		e.Fields["next_header"] = v.NextHeader
+		e.Fields["hop_limit"] = v.HopLimit
+		e.Fields["length"] = v.Length
+		e.Fields["fragment"] = v.Fragment
+		e.Summary = fmt.Sprintf("ipv6 %s -> %s next %d len %d hop %d", v.Src, v.Dst, v.NextHeader, v.Length, v.HopLimit)
+	case icmpv6.Observation:
+		e.Fields["type"] = v.Type
+		e.Fields["type_name"] = v.TypeName()
+		e.Fields["code"] = v.Code
+		e.Fields["src"] = v.Src.String()
+		e.Fields["dst"] = v.Dst.String()
+		e.Fields["dad"] = v.DAD
+		if v.IsNDP() {
+			e.Fields["target"] = addrOrEmpty(v.Target)
+			e.Fields["source_ll"] = macOrEmpty(v.SourceLL)
+			e.Fields["target_ll"] = macOrEmpty(v.TargetLL)
+			e.Fields["router"] = v.Router
+			e.Fields["solicited"] = v.Solicited
+			e.Fields["override"] = v.Override
+			e.Fields["malformed"] = v.Malformed
+			if v.Type == icmpv6.TypeRouterAdvert {
+				e.Fields["managed"] = v.Managed
+				e.Fields["other_config"] = v.OtherConfig
+				e.Fields["router_lifetime"] = v.RouterLifetime
+				e.Fields["mtu"] = v.MTU
+				var ps []string
+				for _, p := range v.Prefixes {
+					ps = append(ps, p.Prefix.String())
+				}
+				e.Fields["prefixes"] = emptyList(ps)
+			}
+		}
+		e.Summary = ndpSummary(v)
 	case dhcpv4.Observation:
 		e.Fields["message_type"] = v.TypeName()
 		e.Fields["xid"] = fmt.Sprintf("0x%08x", v.XID)
@@ -269,6 +311,50 @@ func dhcpSummary(v dhcpv4.Observation) string {
 	default:
 		return fmt.Sprintf("dhcp %s from %s (%s)", v.TypeName(), v.ClientMAC, dashIf(v.Hostname))
 	}
+}
+
+func ndpSummary(v icmpv6.Observation) string {
+	switch v.Type {
+	case icmpv6.TypeNeighborSolicit:
+		if v.DAD {
+			return fmt.Sprintf("ndp dad probe for %s", v.Target)
+		}
+		return fmt.Sprintf("ndp solicitation who-has %s tell %s", v.Target, v.Src)
+	case icmpv6.TypeNeighborAdvert:
+		kind := "unsolicited"
+		if v.Solicited {
+			kind = "solicited"
+		}
+		return fmt.Sprintf("ndp advertisement %s is-at %s (%s)", v.Target, macOrEmpty(v.TargetLL), kind)
+	case icmpv6.TypeRouterAdvert:
+		var ps []string
+		for _, p := range v.Prefixes {
+			ps = append(ps, p.Prefix.String())
+		}
+		return fmt.Sprintf("ndp router advertisement from %s prefixes %s", v.Src, dashIf(strings.Join(ps, ",")))
+	case icmpv6.TypeRouterSolicit:
+		return fmt.Sprintf("ndp router solicitation from %s", v.Src)
+	default:
+		return fmt.Sprintf("icmpv6 %s %s -> %s", v.TypeName(), v.Src, v.Dst)
+	}
+}
+
+func macOrEmpty(hw []byte) string {
+	if len(hw) != 6 {
+		return ""
+	}
+	return fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x", hw[0], hw[1], hw[2], hw[3], hw[4], hw[5])
+}
+
+func vlanList(ids []uint16) string {
+	if len(ids) == 0 {
+		return "unknown"
+	}
+	var s []string
+	for _, id := range ids {
+		s = append(s, fmt.Sprintf("%d", id))
+	}
+	return strings.Join(s, ",")
 }
 
 func addrOrEmpty(a netip.Addr) string {
@@ -325,6 +411,9 @@ func DeviceFrom(d device.Device) Device {
 		FirstSeen:    d.FirstSeen,
 		LastSeen:     d.LastSeen,
 		Local:        d.Local,
+		Router:       d.Router,
+		VLANs:        append([]uint16{}, d.VLANs...),
+		VLAN:         vlanList(d.VLANs),
 		Confidence:   string(d.Confidence),
 		Timeline:     make([]TimelineEntry, 0, len(d.Timeline)),
 		WeakOverflow: d.WeakOverflow,
@@ -364,6 +453,7 @@ func DeviceEventFrom(e device.Event) DeviceEvent {
 	if e.Address.IsValid() {
 		out.Address = e.Address.String()
 	}
+	out.VLAN = e.VLAN
 	if e.Neighbor != nil {
 		n := NeighborFrom(*e.Neighbor)
 		out.Neighbor = &n

@@ -67,7 +67,16 @@ func DeviceEvent(w io.Writer, e output.DeviceEvent) {
 	if addr == "" {
 		addr = bestIPv4(e.Device)
 	}
-	line(&b, "IPv4", addr)
+	if strings.Contains(addr, ":") {
+		line(&b, "IPv6", addr)
+	} else {
+		line(&b, "IPv4", addr)
+	}
+	if e.VLAN != 0 {
+		line(&b, "VLAN", fmt.Sprintf("%d", e.VLAN))
+	} else if e.Change == "new_device" {
+		line(&b, "VLAN", e.Device.VLAN)
+	}
 	if e.Device.Vendor != "" {
 		line(&b, "Vendor", e.Device.Vendor+" (hint)")
 	}
@@ -83,17 +92,20 @@ func DeviceEvent(w io.Writer, e output.DeviceEvent) {
 // Devices prints the device table.
 func Devices(w io.Writer, doc output.Devices) error {
 	tw := tabwriter.NewWriter(w, tabMinWidth, 0, tabPadding, ' ', 0)
-	fmt.Fprintln(tw, "MAC\tIPv4\tVENDOR\tPROTOCOLS\tFIRST\tLAST")
+	fmt.Fprintln(tw, "MAC\tIPv4\tIPv6\tVLAN\tVENDOR\tPROTOCOLS\tFIRST\tLAST")
 	for _, d := range doc.Devices {
-		var v4 []string
+		var v4, v6 []string
 		for _, a := range d.IPv4 {
 			v4 = append(v4, a.Address+" ("+a.State+")")
+		}
+		for _, a := range d.IPv6 {
+			v6 = append(v6, a.Address+" ("+a.State+")")
 		}
 		mac := strings.Join(d.MACs, ",")
 		if d.Local {
 			mac += " (local)"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", mac, dash(strings.Join(v4, " ")), dash(d.Vendor), dash(strings.Join(d.Protocols, ",")),
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", mac, dash(strings.Join(v4, " ")), dash(strings.Join(v6, " ")), d.VLAN, dash(d.Vendor), dash(strings.Join(d.Protocols, ",")),
 			d.FirstSeen.Local().Format(timeLayout), d.LastSeen.Local().Format(timeLayout))
 	}
 	if err := tw.Flush(); err != nil {

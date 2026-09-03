@@ -11,7 +11,9 @@ import (
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
 	"github.com/jeonghanlee/wirepup/internal/protocol/dhcpv4"
 	"github.com/jeonghanlee/wirepup/internal/protocol/ethernet"
+	"github.com/jeonghanlee/wirepup/internal/protocol/icmpv6"
 	"github.com/jeonghanlee/wirepup/internal/protocol/ipv4"
+	"github.com/jeonghanlee/wirepup/internal/protocol/ipv6"
 	"github.com/jeonghanlee/wirepup/internal/protocol/lldp"
 	"github.com/jeonghanlee/wirepup/internal/protocol/udp"
 )
@@ -22,6 +24,8 @@ const (
 	ProtoARP      = "arp"
 	ProtoLLDP     = "lldp"
 	ProtoIPv4     = "ipv4"
+	ProtoIPv6     = "ipv6"
+	ProtoICMPv6   = "icmpv6"
 	ProtoDHCP     = "dhcp"
 )
 
@@ -89,6 +93,48 @@ func (d *Decoder) Decode(pkt capture.Packet) []observation.Observation {
 		}
 	case ethernet.EtherTypeIPv4:
 		obs = append(obs, decodeIPv4(ev, frame.Payload)...)
+	case ethernet.EtherTypeIPv6:
+		obs = append(obs, decodeIPv6(ev, frame.Payload)...)
+	}
+	return obs
+}
+
+// decodeIPv6 emits the IPv6 observation and dispatches ICMPv6 and UDP.
+func decodeIPv6(ev observation.Evidence, payload []byte) []observation.Observation {
+	p, err := ipv6.Parse(payload)
+	if err != nil {
+		return nil
+	}
+	ev.Protocol = ProtoIPv6
+	obs := []observation.Observation{ipv6.Observation{
+		Evidence:   ev,
+		Src:        p.Src,
+		Dst:        p.Dst,
+		NextHeader: p.NextHeader,
+		HopLimit:   p.HopLimit,
+		Length:     ipv6.HeaderLen + p.PayloadLen,
+		Fragment:   p.Fragment,
+	}}
+	if p.PayloadDrop {
+		return obs
+	}
+	switch p.NextHeader {
+	case ipv6.NextICMPv6:
+		m, err := icmpv6.Parse(p.Payload)
+		if err != nil {
+			return obs
+		}
+		ev.Protocol = ProtoICMPv6
+		if m.Malformed {
+			ev.Confidence = observation.StrongHint
+		}
+		obs = append(obs, icmpv6.Observation{
+			Evidence: ev,
+			Message:  m,
+			Src:      p.Src,
+			Dst:      p.Dst,
+			DAD:      m.Type == icmpv6.TypeNeighborSolicit && p.Src.IsUnspecified(),
+		})
 	}
 	return obs
 }

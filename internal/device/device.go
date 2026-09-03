@@ -17,7 +17,9 @@ import (
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
 	"github.com/jeonghanlee/wirepup/internal/protocol/dhcpv4"
 	"github.com/jeonghanlee/wirepup/internal/protocol/ethernet"
+	"github.com/jeonghanlee/wirepup/internal/protocol/icmpv6"
 	"github.com/jeonghanlee/wirepup/internal/protocol/ipv4"
+	"github.com/jeonghanlee/wirepup/internal/protocol/ipv6"
 	"github.com/jeonghanlee/wirepup/internal/protocol/lldp"
 )
 
@@ -38,6 +40,12 @@ const (
 	ViaARPRequest      = "ARP Request"
 	ViaARPReply        = "ARP Reply"
 	ViaIPv4            = "IPv4 packet"
+	ViaIPv6            = "IPv6 packet"
+	ViaVLANTag         = "802.1Q tag"
+	ViaDAD             = "NDP DAD"
+	ViaNDPSolicit      = "NDP Solicitation"
+	ViaNDPAdvert       = "NDP Advertisement"
+	ViaRouterAdvert    = "NDP Router Advertisement"
 	ViaDHCP            = "DHCP"
 	ViaDHCPACK         = "DHCP ACK"
 	ViaDHCPServer      = "DHCP server"
@@ -53,8 +61,9 @@ const (
 
 // Methods label how an address was obtained.
 const (
-	MethodLinkLocal = "IPv4 Link-Local / Auto-IP"
-	MethodDHCP      = "DHCP"
+	MethodLinkLocal   = "IPv4 Link-Local / Auto-IP"
+	MethodDHCP        = "DHCP"
+	MethodV6LinkLocal = "IPv6 Link-Local"
 )
 
 // Protocol labels recorded on a device.
@@ -63,6 +72,8 @@ const (
 	ProtoDHCP       = "dhcp"
 	ProtoDHCPServer = "dhcp-server"
 	ProtoLLDP       = "lldp"
+	ProtoNDP        = "ndp"
+	ProtoIPv6Router = "ipv6-router"
 )
 
 // maxWeakAddresses bounds the "seen" addresses kept per device so that a
@@ -118,6 +129,8 @@ type Device struct {
 	FirstSeen    time.Time
 	LastSeen     time.Time
 	Local        bool
+	Router       bool // advertised itself as an IPv6 router
+	VLANs        []uint16
 	Confidence   observation.Confidence
 	Timeline     []TimelineEntry
 	WeakOverflow int // "seen" addresses not recorded because the cap was reached
@@ -169,6 +182,7 @@ type Event struct {
 	Via      string
 	Method   string
 	Address  netip.Addr
+	VLAN     uint16
 	Ref      Ref
 }
 
@@ -268,6 +282,10 @@ func (t *Table) Apply(obs []observation.Observation) []Event {
 			events = append(events, t.applyLLDP(v)...)
 		case ipv4.Observation:
 			events = append(events, t.applyIPv4(frame, v)...)
+		case ipv6.Observation:
+			events = append(events, t.applyIPv6(frame, v)...)
+		case icmpv6.Observation:
+			events = append(events, t.applyICMPv6(frame, v)...)
 		case dhcpv4.Observation:
 			events = append(events, t.applyDHCP(frame, v)...)
 		}
@@ -279,8 +297,85 @@ func (t *Table) applyFrame(v ethernet.Observation) []Event {
 	if !validKey(v.Source) {
 		return nil
 	}
-	_, ev := t.touch(v.Source.String(), v.Timestamp, ViaEthernet, RefOf(v.Evidence))
+	d, ev := t.touch(v.Source.String(), v.Timestamp, ViaEthernet, RefOf(v.Evidence))
+	if v.VLAN != nil {
+		ev = append(ev, t.addVLAN(d, v.VLAN.ID, v.Timestamp, RefOf(v.Evidence))...)
+	}
 	return ev
+}
+
+// addVLAN records a tag seen on a frame from the device. Absence of a
+// tag is never recorded: it means "unknown", not "no VLAN" (R-009).
+func (t *Table) addVLAN(d *Device, id uint16, at time.Time, ref Ref) []Event {
+	for _, v := range d.VLANs {
+		if v == id {
+			return nil
+		}
+	}
+	d.VLANs = append(d.VLANs, id)
+	addTimeline(d, at, fmt.Sprintf("VLAN %d tag observed", id), ref)
+	return []Event{{Time: at, Change: ChangeUpdate, Device: snapshot(d), Via: ViaVLANTag, VLAN: id, Ref: ref}}
+}
+
+// applyIPv6 binds the packet's source address to the frame's source MAC
+// as a weak "seen" claim, like applyIPv4.
+func (t *Table) applyIPv6(frame *ethernet.Observation, v ipv6.Observation) []Event {
+	if frame == nil || !validKey(frame.Source) || !usableIPv6(v.Src) {
+		return nil
+	}
+	d, events := t.touch(frame.Source.String(), v.Timestamp, ViaEthernet, RefOf(v.Evidence))
+	return append(events, t.addAddress(d, v.Src, StateSeen, ViaIPv6, "", v.Timestamp, RefOf(v.Evidence))...)
+}
+
+// applyICMPv6 interprets Neighbor Discovery: DAD probes, solicitations
+// and advertisements as address claims, router advertisements as the
+// router role.
+func (t *Table) applyICMPv6(frame *ethernet.Observation, v icmpv6.Observation) []Event {
+	if frame == nil || !validKey(frame.Source) || !v.IsNDP() {
+		return nil
+	}
+	ref := RefOf(v.Evidence)
+	d, events := t.touch(frame.Source.String(), v.Timestamp, ViaEthernet, ref)
+	addProtocol(d, ProtoNDP)
+	switch v.Type {
+	case icmpv6.TypeNeighborSolicit:
+		if v.DAD {
+			events = append(events, t.addAddress(d, v.Target, StateProbing, ViaDAD, "", v.Timestamp, ref)...)
+		} else if usableIPv6(v.Src) {
+			events = append(events, t.addAddress(d, v.Src, StateObserved, ViaNDPSolicit, "", v.Timestamp, ref)...)
+		}
+	case icmpv6.TypeNeighborAdvert:
+		state := StateObserved
+		if !v.Solicited {
+			state = StateClaimed
+		}
+		events = append(events, t.addAddress(d, v.Target, state, ViaNDPAdvert, "", v.Timestamp, ref)...)
+		if v.Router {
+			t.markRouter(d, v.Timestamp, ref)
+		}
+	case icmpv6.TypeRouterAdvert:
+		t.markRouter(d, v.Timestamp, ref)
+		if usableIPv6(v.Src) {
+			events = append(events, t.addAddress(d, v.Src, StateObserved, ViaRouterAdvert, "", v.Timestamp, ref)...)
+		}
+		for _, p := range v.Prefixes {
+			addTimeline(d, v.Timestamp, "RA prefix "+p.Prefix.String(), ref)
+		}
+	case icmpv6.TypeRouterSolicit:
+		if usableIPv6(v.Src) {
+			events = append(events, t.addAddress(d, v.Src, StateObserved, ViaNDPSolicit, "", v.Timestamp, ref)...)
+		}
+	}
+	return events
+}
+
+func (t *Table) markRouter(d *Device, at time.Time, ref Ref) {
+	if d.Router {
+		return
+	}
+	d.Router = true
+	addProtocol(d, ProtoIPv6Router)
+	addTimeline(d, at, "IPv6 router advertisement", ref)
 }
 
 func (t *Table) applyARP(v arp.Observation) []Event {
@@ -464,17 +559,26 @@ func (t *Table) touch(mac string, at time.Time, via string, ref Ref) (*Device, [
 	return d, []Event{{Time: at, Change: ChangeNewDevice, Device: snapshot(d), Via: via, Ref: ref}}
 }
 
-// addAddress records an IPv4 address claim and emits an update event when
+// addAddress records an address claim and emits an update event when
 // the address is new or the claim became stronger.
 func (t *Table) addAddress(d *Device, addr netip.Addr, state, via, method string, at time.Time, ref Ref) []Event {
 	if !addr.IsValid() || addr.IsUnspecified() {
 		return nil
 	}
-	if method == "" && arp.IsLinkLocal(addr) {
-		method = MethodLinkLocal
+	if method == "" {
+		switch {
+		case arp.IsLinkLocal(addr):
+			method = MethodLinkLocal
+		case addr.Is6() && addr.IsLinkLocalUnicast():
+			method = MethodV6LinkLocal
+		}
 	}
-	for i := range d.IPv4 {
-		a := &d.IPv4[i]
+	list := &d.IPv4
+	if addr.Is6() {
+		list = &d.IPv6
+	}
+	for i := range *list {
+		a := &(*list)[i]
 		if a.Addr != addr {
 			continue
 		}
@@ -488,18 +592,18 @@ func (t *Table) addAddress(d *Device, addr netip.Addr, state, via, method string
 		addTimeline(d, at, timelineText(via, addr), ref)
 		return []Event{{Time: at, Change: ChangeUpdate, Device: snapshot(d), Via: via, Method: method, Address: addr, Ref: ref}}
 	}
-	if state == StateSeen && weakCount(d) >= maxWeakAddresses {
+	if state == StateSeen && weakCount(*list) >= maxWeakAddresses {
 		d.WeakOverflow++
 		return nil
 	}
-	d.IPv4 = append(d.IPv4, Address{Addr: addr, State: state, Via: via, FirstSeen: at, LastSeen: at, Ref: ref})
+	*list = append(*list, Address{Addr: addr, State: state, Via: via, FirstSeen: at, LastSeen: at, Ref: ref})
 	addTimeline(d, at, timelineText(via, addr), ref)
 	return []Event{{Time: at, Change: ChangeUpdate, Device: snapshot(d), Via: via, Method: method, Address: addr, Ref: ref}}
 }
 
-func weakCount(d *Device) int {
+func weakCount(list []Address) int {
 	n := 0
-	for _, a := range d.IPv4 {
+	for _, a := range list {
 		if a.State == StateSeen {
 			n++
 		}
@@ -517,6 +621,14 @@ func timelineText(via string, addr netip.Addr) string {
 		return "DHCP ack " + addr.String()
 	case ViaIPv4:
 		return "IPv4 seen " + addr.String()
+	case ViaIPv6:
+		return "IPv6 seen " + addr.String()
+	case ViaDAD:
+		return "DAD probe " + addr.String()
+	case ViaNDPAdvert:
+		return "NDP advertisement " + addr.String()
+	case ViaNDPSolicit, ViaRouterAdvert:
+		return "IPv6 observed " + addr.String()
 	default:
 		return "IPv4 observed " + addr.String()
 	}
@@ -557,6 +669,10 @@ func usableIPv4(a netip.Addr) bool {
 	return a.IsValid() && a.Is4() && !a.IsUnspecified() && !a.IsMulticast() && !a.IsLoopback() && a != netip.AddrFrom4([4]byte{255, 255, 255, 255})
 }
 
+func usableIPv6(a netip.Addr) bool {
+	return a.IsValid() && a.Is6() && !a.IsUnspecified() && !a.IsMulticast() && !a.IsLoopback()
+}
+
 func validKey(mac []byte) bool {
 	return ethernet.IsUnicast(mac) && !ethernet.IsZero(mac)
 }
@@ -568,6 +684,7 @@ func snapshot(d *Device) Device {
 	c.IPv6 = append([]Address(nil), d.IPv6...)
 	c.Names = append([]Name(nil), d.Names...)
 	c.Protocols = append([]string(nil), d.Protocols...)
+	c.VLANs = append([]uint16(nil), d.VLANs...)
 	c.Timeline = append([]TimelineEntry(nil), d.Timeline...)
 	return c
 }

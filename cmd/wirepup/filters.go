@@ -31,10 +31,12 @@ var protocolFilters = map[string]protocolFilter{
 	"lldp":  {rules: []bpf.Rule{{EtherType: etherTypeLLDP}}, displays: []string{"lldp"}},
 	"ipv4":  {rules: []bpf.Rule{{EtherType: etherTypeIPv4}}, displays: []string{"ipv4"}},
 	"dhcp":  {rules: []bpf.Rule{{EtherType: etherTypeIPv4, IPProto: ipProtoUDP, Port: 67}, {EtherType: etherTypeIPv4, IPProto: ipProtoUDP, Port: 68}}, displays: []string{"dhcp"}},
+	"ipv6":  {rules: []bpf.Rule{{EtherType: etherTypeIPv6}}, displays: []string{"ipv6"}},
+	"ndp":   {rules: []bpf.Rule{{EtherType: etherTypeIPv6, IPProto: ipProtoICMPv6}}, displays: []string{"icmpv6"}},
 }
 
 // hiddenProtocols are shown only in verbose mode or when requested.
-var hiddenProtocols = map[string]bool{"ethernet": true, "ipv4": true}
+var hiddenProtocols = map[string]bool{"ethernet": true, "ipv4": true, "ipv6": true}
 
 // filterFor resolves the --protocol flag into a BPF program and the set
 // of displayed protocol names. An empty spec means everything.
