@@ -384,7 +384,7 @@ internal/epics/pva/          PVAccess parser and observations
 
 internal/device/             correlator, Device, timeline (ADR-0004)
 internal/oui/                vendor hints from the external registry file (ADR-0011)
-internal/hostnet/            read-only local interfaces, addresses, routes
+internal/interfaces/         read-only local interfaces, addresses, routes
 internal/diagnose/           rules; Observed/Inferred/Recommended/Executed result model
 
 internal/output/             result structs shared by every renderer

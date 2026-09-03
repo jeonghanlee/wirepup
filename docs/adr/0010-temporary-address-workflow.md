@@ -21,7 +21,7 @@ Options for applying the change:
 `internal/networkcfg` applies and removes addresses by running iproute2 with an explicit argument vector and no shell:
 
 ```text
-ip -4 address add <address>/<prefix> dev <interface> label <interface>:wp
+ip -4 address add <address>/<prefix> dev <interface> label <interface>:wirepup
 ip -4 address del <address>/<prefix> dev <interface>
 ```
 
