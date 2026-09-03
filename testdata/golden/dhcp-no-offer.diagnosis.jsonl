@@ -1,0 +1,145 @@
+{
+  "schema": "wirepup/diagnosis/1",
+  "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+  "interface": "capture",
+  "target_observed": false,
+  "generated_at": "2026-01-01T00:00:04Z",
+  "observed": [
+    {
+      "code": "local-context",
+      "text": "local capture IPv4 = 10.20.30.51/24",
+      "evidence": [],
+      "data": {
+        "interface": "capture",
+        "ipv4": "10.20.30.51/24"
+      }
+    },
+    {
+      "code": "l2-evidence",
+      "text": "ARP Announcement frame from MAC 00:80:f4:12:34:56 on capture",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+          "packet_id": 5
+        }
+      ],
+      "data": {
+        "mac": "00:80:f4:12:34:56",
+        "via": "ARP Announcement"
+      }
+    },
+    {
+      "code": "address-claim",
+      "text": "ARP Announcement sender IPv4 = 169.254.22.31",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+          "packet_id": 5
+        }
+      ],
+      "data": {
+        "address": "169.254.22.31",
+        "mac": "00:80:f4:12:34:56",
+        "state": "claimed"
+      }
+    },
+    {
+      "code": "dhcp-discover-no-offer",
+      "text": "DHCP discover from 00:80:f4:12:34:56 (xid 0x00002001) with no offer observed",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+          "packet_id": 1
+        }
+      ],
+      "data": {
+        "mac": "00:80:f4:12:34:56",
+        "xid": "0x00002001"
+      }
+    }
+  ],
+  "inferred": [
+    {
+      "code": "ipv4-outside-local-subnet",
+      "text": "MAC 00:80:f4:12:34:56 appears to use 169.254.22.31",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+          "packet_id": 5
+        }
+      ],
+      "data": {
+        "address": "169.254.22.31",
+        "mac": "00:80:f4:12:34:56"
+      }
+    },
+    {
+      "code": "same-l2-different-subnet",
+      "text": "169.254.22.31 is outside every configured local IPv4 subnet (10.20.30.51/24) although its MAC is on the same Layer-2 segment",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+          "packet_id": 5
+        }
+      ],
+      "data": {
+        "address": "169.254.22.31",
+        "local_ipv4": "10.20.30.51/24",
+        "mac": "00:80:f4:12:34:56"
+      }
+    },
+    {
+      "code": "dhcp-discover-no-offer",
+      "text": "no DHCP server answered 00:80:f4:12:34:56 on this segment during the window; a server or relay may be absent, or the answer took another path",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+          "packet_id": 1
+        }
+      ]
+    },
+    {
+      "code": "auto-ip-fallback",
+      "text": "00:80:f4:12:34:56 uses IPv4 Link-Local 169.254.22.31 after a DHCP discover without a lease: Auto-IP fallback",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+          "packet_id": 5
+        }
+      ],
+      "data": {
+        "address": "169.254.22.31",
+        "mac": "00:80:f4:12:34:56"
+      }
+    }
+  ],
+  "recommended": [
+    {
+      "code": "temporary-secondary-address",
+      "text": "consider a temporary secondary address 169.254.22.254 on capture to reach 169.254.22.31 (prefix /24 assumed; verify before use); no host configuration is changed without an explicit connect command",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+          "packet_id": 5
+        }
+      ],
+      "data": {
+        "candidate": "169.254.22.254",
+        "interface": "capture",
+        "prefix": "169.254.22.0/24",
+        "target": "169.254.22.31"
+      }
+    },
+    {
+      "code": "dhcp-discover-no-offer",
+      "text": "check the DHCP server or relay for this VLAN; a device without DHCP usually falls back to IPv4 Link-Local (169.254/16) or stays at 0.0.0.0",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+          "packet_id": 1
+        }
+      ]
+    }
+  ],
+  "executed": []
+}

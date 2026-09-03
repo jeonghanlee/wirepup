@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/netip"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/jeonghanlee/wirepup/internal/capture"
 	"github.com/jeonghanlee/wirepup/internal/device"
 	"github.com/jeonghanlee/wirepup/internal/diagnose"
 	"github.com/jeonghanlee/wirepup/internal/interfaces"
@@ -59,12 +61,14 @@ func runDiagnose(ctx context.Context, e *env, args []string) int {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitCodeFor(err)
 	}
-	src, err := openSource(&g, prog)
+	srcs, err := openSources(&g, prog)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitCodeFor(err)
 	}
-	defer src.Close()
+	for _, s := range srcs {
+		defer s.Close()
+	}
 	var local []string
 	if g.pcap == "" {
 		local, _ = interfaces.LocalMACs()
@@ -72,17 +76,20 @@ func runDiagnose(ctx context.Context, e *env, args []string) int {
 			g.timeout = defaultDiagnoseWindow
 		}
 		if !g.quiet {
-			fmt.Fprintf(e.stderr, "Observing %s for %s (passive: nothing is transmitted)...\n", src.Name(), g.timeout)
+			fmt.Fprintf(e.stderr, "Observing %s for %s (passive: nothing is transmitted)...\n", sourceNames(srcs), g.timeout)
 		}
 	}
 	table := device.New(device.Options{LocalMACs: local, Vendor: vendors.Lookup})
 	ctx, cancel := withTimeout(ctx, &g)
 	defer cancel()
+	var mu sync.Mutex
 	var last time.Time
-	ds, cs, runErr := runSource(ctx, src, func(obs []observation.Observation) {
-		if len(obs) > 0 {
+	ds, cs, runErr := runSources(ctx, srcs, func(obs []observation.Observation) {
+		mu.Lock()
+		if len(obs) > 0 && obs[0].Ref().Timestamp.After(last) {
 			last = obs[0].Ref().Timestamp
 		}
+		mu.Unlock()
 		table.Apply(obs)
 	})
 	reportStats(e, &g, ds, cs)
@@ -90,13 +97,12 @@ func runDiagnose(ctx context.Context, e *env, args []string) int {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", runErr)
 		return exitCodeFor(runErr)
 	}
-	report := diagnose.Run(dctx, table, target)
-	_ = epicsOnly
 	at := time.Now()
 	if g.pcap != "" && !last.IsZero() {
 		at = last
 	}
-	doc := output.DiagnosisFrom(src.Name(), at, report)
+	report := diagnose.RunAll(dctx, table, target, diagnose.Options{EPICSOnly: epicsOnly, End: at})
+	doc := output.DiagnosisFrom(sourceNames(srcs), at, report)
 	if g.json {
 		jsonout.Document(e.stdout, doc)
 	} else {
@@ -108,14 +114,24 @@ func runDiagnose(ctx context.Context, e *env, args []string) int {
 	return exitOK
 }
 
+func sourceNames(srcs []capture.Source) string {
+	names := make([]string, 0, len(srcs))
+	for _, s := range srcs {
+		names = append(names, s.Name())
+	}
+	return strings.Join(names, ",")
+}
+
 // diagnosisContext takes the local context from the host for live runs
-// and from --local for capture files.
+// (the first interface when several are given) and from --local for
+// capture files.
 func diagnosisContext(g *globalFlags) (diagnose.Context, error) {
 	if g.pcap == "" {
 		if g.iface == "" {
 			return diagnose.Context{}, fmt.Errorf("%w: an interface is required (-i)", errUsage)
 		}
-		return diagnose.ContextFor(g.iface)
+		first := strings.TrimSpace(strings.Split(g.iface, ",")[0])
+		return diagnose.ContextFor(first)
 	}
 	var prefixes []netip.Prefix
 	for _, s := range strings.Split(g.local, ",") {

@@ -22,6 +22,18 @@ func tableFrom(t *testing.T, frames ...[]byte) *device.Table {
 	return tbl
 }
 
+// applyFrom decodes frames under a named source so that per-source rules
+// can be exercised.
+func applyFrom(t *testing.T, tbl *device.Table, source string, frames ...[]byte) {
+	t.Helper()
+	dec := decode.New(source)
+	for i, f := range frames {
+		p := fixtures.Packet(i, f)
+		p.Interface = source
+		tbl.Apply(dec.Decode(p))
+	}
+}
+
 func codes(fs []Finding) string {
 	var s []string
 	for _, f := range fs {

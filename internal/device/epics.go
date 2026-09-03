@@ -68,17 +68,18 @@ const maxSearches = 10000
 
 // CASearch is one client search and the responses it received.
 type CASearch struct {
-	ClientIP   netip.Addr
-	ClientPort uint16
-	ClientMAC  string
-	ID         uint32
-	PV         string
-	Count      int
-	FirstSeen  time.Time
-	LastSeen   time.Time
-	Responses  []CAResponse
-	NotFound   []CAResponse
-	Ref        Ref
+	ClientIP    netip.Addr
+	ClientPort  uint16
+	ClientMAC   string
+	Destination netip.Addr
+	ID          uint32
+	PV          string
+	Count       int
+	FirstSeen   time.Time
+	LastSeen    time.Time
+	Responses   []CAResponse
+	NotFound    []CAResponse
+	Ref         Ref
 }
 
 // CAResponse is one server answer to a search.
@@ -304,7 +305,7 @@ func (t *Table) applyCA(frame *ethernet.Observation, v ca.Observation) []Event {
 		key := searchKey(v.Src, v.SearchID)
 		s, ok := t.ca.searches[key]
 		if !ok {
-			s = &CASearch{ClientIP: v.Src, ClientPort: v.SrcPort, ClientMAC: mac, ID: v.SearchID, PV: v.PVName, FirstSeen: v.Timestamp, Ref: ref}
+			s = &CASearch{ClientIP: v.Src, ClientPort: v.SrcPort, ClientMAC: mac, Destination: v.Dst, ID: v.SearchID, PV: v.PVName, FirstSeen: v.Timestamp, Ref: ref}
 			t.ca.searches[key] = s
 			t.ca.sorder = append(t.ca.sorder, s)
 			if len(t.ca.sorder) > maxSearches {

@@ -1,0 +1,43 @@
+{
+  "schema": "wirepup/diagnosis/1",
+  "source": "../../testdata/pcap/ca-search-no-response.pcap,../../testdata/pcap/arp-autoip-selection.pcap",
+  "interface": "capture",
+  "target_observed": false,
+  "generated_at": "2026-01-01T00:00:04Z",
+  "observed": [
+    {
+      "code": "ca-search-no-response",
+      "text": "CA search for MISSING:PV from 10.20.4.88:40000 (x3) with no response observed",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/ca-search-no-response.pcap",
+          "packet_id": 1
+        }
+      ],
+      "data": {
+        "client": "10.20.4.88",
+        "count": "3",
+        "pv": "MISSING:PV"
+      }
+    },
+    {
+      "code": "discovery-differs-between-sources",
+      "text": "discovery activity per source: ../../testdata/pcap/arp-autoip-selection.pcap: CA searches 0, CA servers 0, PVA searches 0, PVA servers 0; ../../testdata/pcap/ca-search-no-response.pcap: CA searches 3, CA servers 0, PVA searches 0, PVA servers 0",
+      "evidence": []
+    }
+  ],
+  "inferred": [
+    {
+      "code": "ca-search-no-response",
+      "text": "1 CA search(es) received no observed response; absence of a reply is not proof that the PV does not exist: the server may be on another subnet, its reply may not cross this interface, or EPICS_CA_ADDR_LIST may not reach it",
+      "evidence": []
+    },
+    {
+      "code": "discovery-differs-between-sources",
+      "text": "EPICS discovery traffic is present on one source but absent on another; clients and servers may be attached to different interfaces or VLANs",
+      "evidence": []
+    }
+  ],
+  "recommended": [],
+  "executed": []
+}

@@ -1,0 +1,73 @@
+{
+  "schema": "wirepup/diagnosis/1",
+  "source": "../../testdata/pcap/ca-duplicate-servers.pcap",
+  "interface": "capture",
+  "target_observed": false,
+  "generated_at": "2026-01-01T00:00:02Z",
+  "observed": [
+    {
+      "code": "ca-multiple-servers",
+      "text": "CA search for DUP:PV answered by 2 servers: 10.20.4.31:5064, 10.20.4.32:5064",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/ca-duplicate-servers.pcap",
+          "packet_id": 2
+        },
+        {
+          "source": "../../testdata/pcap/ca-duplicate-servers.pcap",
+          "packet_id": 3
+        }
+      ],
+      "data": {
+        "pv": "DUP:PV",
+        "servers": "10.20.4.31:5064,10.20.4.32:5064"
+      }
+    },
+    {
+      "code": "ca-server-seen",
+      "text": "CA server 10.20.4.31 TCP port 5064: 1 search answer(s), 0 beacon(s)",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/ca-duplicate-servers.pcap",
+          "packet_id": 2
+        }
+      ],
+      "data": {
+        "server": "10.20.4.31",
+        "tcp_port": "5064"
+      }
+    },
+    {
+      "code": "ca-server-seen",
+      "text": "CA server 10.20.4.32 TCP port 5064: 1 search answer(s), 0 beacon(s)",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/ca-duplicate-servers.pcap",
+          "packet_id": 3
+        }
+      ],
+      "data": {
+        "server": "10.20.4.32",
+        "tcp_port": "5064"
+      }
+    }
+  ],
+  "inferred": [
+    {
+      "code": "ca-multiple-servers",
+      "text": "more than one CA server claims DUP:PV; clients connect to whichever answers first, so the value they see may change between runs",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/ca-duplicate-servers.pcap",
+          "packet_id": 2
+        },
+        {
+          "source": "../../testdata/pcap/ca-duplicate-servers.pcap",
+          "packet_id": 3
+        }
+      ]
+    }
+  ],
+  "recommended": [],
+  "executed": []
+}

@@ -45,6 +45,9 @@ var goldenCases = []struct {
 	{"pva-search-response.find", []string{"epics", "find", "MPS:SYS:STATE", "--pcap", filepath.Join(fixtureDir, "pva-search-response.pcap"), "--json", "--quiet"}},
 	{"pva-beacon.events", []string{"epics", "observe", "--pcap", filepath.Join(fixtureDir, "pva-beacon.pcap"), "--json", "--quiet"}},
 	{"pva-tcp-handshake.events", []string{"read", "--json", "--quiet", "--verbose", filepath.Join(fixtureDir, "pva-tcp-handshake.pcap")}},
+	{"dhcp-no-offer.diagnosis", []string{"diagnose", "--pcap", filepath.Join(fixtureDir, "dhcp-no-offer.pcap"), "--local", "10.20.30.51/24", "--json", "--quiet"}},
+	{"ca-duplicate-servers.diagnosis", []string{"diagnose", "--epics", "--pcap", filepath.Join(fixtureDir, "ca-duplicate-servers.pcap"), "--local", "10.20.4.88/24", "--json", "--quiet"}},
+	{"two-sources.diagnosis", []string{"diagnose", "--epics", "--pcap", filepath.Join(fixtureDir, "ca-search-no-response.pcap") + "," + filepath.Join(fixtureDir, "arp-autoip-selection.pcap"), "--local", "10.20.4.88/24", "--json", "--quiet"}},
 }
 
 func TestGoldenJSON(t *testing.T) {
@@ -180,5 +183,25 @@ func TestEPICSPVACommands(t *testing.T) {
 	}
 	if code, _, errs := runCLI(t, "epics", "find", "X:Y", "--active", "--to", "10.0.0.1", "--search", "http", "--yes"); code != exitUsage || !strings.Contains(errs, "--search") {
 		t.Fatalf("bad search protocol %d %s", code, errs)
+	}
+}
+
+func TestDiagnoseRulesText(t *testing.T) {
+	code, out, _ := runCLI(t, "diagnose", "--pcap", filepath.Join(fixtureDir, "dhcp-no-offer.pcap"), "--local", "10.20.30.51/24", "--quiet")
+	if code != exitOK {
+		t.Fatalf("exit %d", code)
+	}
+	for _, want := range []string{"DHCP discover from 00:80:f4:12:34:56", "no offer observed", "Auto-IP fallback", "check the DHCP server or relay"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in:\n%s", want, out)
+		}
+	}
+	code, out, _ = runCLI(t, "epics", "diagnose", "--pcap", filepath.Join(fixtureDir, "ca-duplicate-servers.pcap"), "--local", "10.20.4.88/24", "--quiet")
+	if code != exitOK || !strings.Contains(out, "answered by 2 servers") || strings.Contains(out, "local capture IPv4") {
+		t.Fatalf("epics diagnose exit %d:\n%s", code, out)
+	}
+	code, out, _ = runCLI(t, "diagnose", "--epics", "--pcap", filepath.Join(fixtureDir, "ca-search-no-response.pcap")+","+filepath.Join(fixtureDir, "arp-autoip-selection.pcap"), "--quiet")
+	if code != exitOK || !strings.Contains(out, "discovery activity per source") || !strings.Contains(out, "present on one source but absent on another") {
+		t.Fatalf("two sources exit %d:\n%s", code, out)
 	}
 }

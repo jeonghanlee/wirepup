@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
+	"sync"
 
 	"github.com/jeonghanlee/wirepup/internal/capture"
 	"github.com/jeonghanlee/wirepup/internal/capture/afpacket"
@@ -38,6 +40,78 @@ func openSource(g *globalFlags, prog []bpf.Instruction) (capture.Source, error) 
 		return pcapfile.Open(g.pcap)
 	}
 	return openLive(g, prog)
+}
+
+// openSources opens every comma-separated interface or capture file so
+// that diagnosis can compare sources. Kernel filters apply to live
+// sources only.
+func openSources(g *globalFlags, prog []bpf.Instruction) ([]capture.Source, error) {
+	var names []string
+	live := g.pcap == ""
+	spec := g.pcap
+	if live {
+		spec = g.iface
+	}
+	for _, n := range strings.Split(spec, ",") {
+		if n = strings.TrimSpace(n); n != "" {
+			names = append(names, n)
+		}
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("%w: an interface (-i) or a capture file (--pcap) is required", errUsage)
+	}
+	if !live && g.iface != "" {
+		return nil, fmt.Errorf("%w: use either --pcap or -i, not both", errUsage)
+	}
+	var out []capture.Source
+	for _, n := range names {
+		var src capture.Source
+		var err error
+		if live {
+			src, err = afpacket.Open(afpacket.Options{Interface: n, Promiscuous: !g.noPromisc, Filter: prog})
+		} else {
+			src, err = pcapfile.Open(n)
+		}
+		if err != nil {
+			for _, s := range out {
+				s.Close()
+			}
+			return nil, err
+		}
+		out = append(out, src)
+	}
+	return out, nil
+}
+
+// runSources drains several sources concurrently into one sink; the
+// sink must be safe for concurrent use. Files replay sequentially so
+// that packet order within a file is preserved per source.
+func runSources(ctx context.Context, srcs []capture.Source, s sink) (decode.Stats, capture.Stats, error) {
+	var mu sync.Mutex
+	var total decode.Stats
+	var ctotal capture.Stats
+	var firstErr error
+	var wg sync.WaitGroup
+	for _, src := range srcs {
+		wg.Add(1)
+		go func(src capture.Source) {
+			defer wg.Done()
+			ds, cs, err := runSource(ctx, src, s)
+			mu.Lock()
+			defer mu.Unlock()
+			total.Packets += ds.Packets
+			total.Decoded += ds.Decoded
+			total.Malformed += ds.Malformed
+			total.Skipped += ds.Skipped
+			ctotal.Received += cs.Received
+			ctotal.Dropped += cs.Dropped
+			if err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}(src)
+	}
+	wg.Wait()
+	return total, ctotal, firstErr
 }
 
 // runSource drains a source through the decode pipeline into the sink
