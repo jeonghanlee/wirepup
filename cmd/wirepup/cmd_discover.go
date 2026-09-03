@@ -24,30 +24,42 @@ func runDiscover(ctx context.Context, e *env, args []string) int {
 	if ok, code := parse(fs, args); !ok {
 		return code
 	}
+	return discoverWith(ctx, e, &g)
+}
+
+// discoverWith runs device discovery over the selected source.
+func discoverWith(ctx context.Context, e *env, g *globalFlags) int {
 	prog, _, err := filterFor(g.protocols)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitCodeFor(err)
 	}
-	vendors, ouiPath, err := loadOUI(e, &g)
+	vendors, ouiPath, err := loadOUI(e, g)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitUsage
 	}
-	src, err := openLive(&g, prog)
+	src, err := openSource(g, prog)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitCodeFor(err)
 	}
 	defer src.Close()
-	local, _ := interfaces.LocalMACs()
+	var local []string
+	if g.pcap == "" {
+		local, _ = interfaces.LocalMACs()
+	}
 	table := device.New(device.Options{LocalMACs: local, Vendor: vendors.Lookup})
-	if !g.quiet {
+	if !g.quiet && g.pcap == "" {
 		fmt.Fprintf(e.stderr, "Listening on %s (passive: nothing is transmitted)...\n", src.Name())
 	}
-	ctx, cancel := withTimeout(ctx, &g)
+	ctx, cancel := withTimeout(ctx, g)
 	defer cancel()
+	var last time.Time
 	show := func(obs []observation.Observation) {
+		if len(obs) > 0 {
+			last = obs[0].Ref().Timestamp
+		}
 		for _, ev := range table.Apply(obs) {
 			de := output.DeviceEventFrom(ev)
 			if g.json {
@@ -58,8 +70,12 @@ func runDiscover(ctx context.Context, e *env, args []string) int {
 		}
 	}
 	ds, cs, runErr := runSource(ctx, src, show)
-	reportStats(e, &g, ds, cs)
-	doc := output.DevicesFrom(src.Name(), time.Now(), ouiPath, table.Devices(), table.Neighbors(), table.Conflicts())
+	reportStats(e, g, ds, cs)
+	at := time.Now()
+	if g.pcap != "" && !last.IsZero() {
+		at = last
+	}
+	doc := output.DevicesFrom(src.Name(), at, ouiPath, table.Devices(), table.Neighbors(), table.Conflicts())
 	if g.json {
 		jsonout.Document(e.stdout, doc)
 	} else if len(doc.Devices) > 0 {

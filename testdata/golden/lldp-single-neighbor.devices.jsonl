@@ -1,0 +1,86 @@
+{"schema":"wirepup/device-event/1","time":"2026-01-01T00:00:00Z","change":"new_device","via":"Ethernet","device":{"id":"00:1c:73:00:00:01","macs":["00:1c:73:00:00:01"],"mac_locally_administered":false,"vendor_hint":"Example Networks Inc.","ipv4":[],"ipv6":[],"names":[],"protocols":[],"first_seen":"2026-01-01T00:00:00Z","last_seen":"2026-01-01T00:00:00Z","local":false,"ipv6_router":false,"vlans":[],"vlan":"unknown","confidence":"weak_hint","timeline":[{"time":"2026-01-01T00:00:00Z","text":"MAC observed","evidence":{"source":"../../testdata/pcap/lldp-single-neighbor.pcap","packet_id":1}}]},"evidence":{"source":"../../testdata/pcap/lldp-single-neighbor.pcap","packet_id":1}}
+{"schema":"wirepup/device-event/1","time":"2026-01-01T00:00:00Z","change":"new_neighbor","via":"LLDP","device":{"id":"","macs":[],"mac_locally_administered":false,"ipv4":[],"ipv6":[],"names":[],"protocols":[],"first_seen":"0001-01-01T00:00:00Z","last_seen":"0001-01-01T00:00:00Z","local":false,"ipv6_router":false,"vlans":[],"vlan":"unknown","confidence":"","timeline":[]},"neighbor":{"id":"00:1c:73:00:00:01|Gi1/0/12","chassis_id":"00:1c:73:00:00:01","port_id":"Gi1/0/12","source_mac":"00:1c:73:00:00:01","system_name":"sw-lab-1","capabilities":["bridge"],"enabled_capabilities":["bridge"],"management_addresses":["10.20.30.1"],"port_vlan_id":100,"vlan_names":[],"ttl":120,"first_seen":"2026-01-01T00:00:00Z","last_seen":"2026-01-01T00:00:00Z","evidence":{"source":"../../testdata/pcap/lldp-single-neighbor.pcap","packet_id":1}},"evidence":{"source":"../../testdata/pcap/lldp-single-neighbor.pcap","packet_id":1}}
+{
+  "schema": "wirepup/devices/1",
+  "source": "../../testdata/pcap/lldp-single-neighbor.pcap",
+  "generated_at": "2026-01-01T00:00:01Z",
+  "oui_file": "../../testdata/fixtures/oui/oui.txt",
+  "devices": [
+    {
+      "id": "00:1c:73:00:00:01",
+      "macs": [
+        "00:1c:73:00:00:01"
+      ],
+      "mac_locally_administered": false,
+      "vendor_hint": "Example Networks Inc.",
+      "ipv4": [],
+      "ipv6": [],
+      "names": [
+        {
+          "value": "sw-lab-1",
+          "via": "LLDP",
+          "evidence": {
+            "source": "../../testdata/pcap/lldp-single-neighbor.pcap",
+            "packet_id": 1
+          }
+        }
+      ],
+      "protocols": [
+        "lldp"
+      ],
+      "first_seen": "2026-01-01T00:00:00Z",
+      "last_seen": "2026-01-01T00:00:01Z",
+      "local": false,
+      "ipv6_router": false,
+      "vlans": [],
+      "vlan": "unknown",
+      "confidence": "weak_hint",
+      "timeline": [
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "text": "MAC observed",
+          "evidence": {
+            "source": "../../testdata/pcap/lldp-single-neighbor.pcap",
+            "packet_id": 1
+          }
+        },
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "text": "LLDP name sw-lab-1",
+          "evidence": {
+            "source": "../../testdata/pcap/lldp-single-neighbor.pcap",
+            "packet_id": 1
+          }
+        }
+      ]
+    }
+  ],
+  "neighbors": [
+    {
+      "id": "00:1c:73:00:00:01|Gi1/0/12",
+      "chassis_id": "00:1c:73:00:00:01",
+      "port_id": "Gi1/0/12",
+      "source_mac": "00:1c:73:00:00:01",
+      "system_name": "sw-lab-1",
+      "capabilities": [
+        "bridge"
+      ],
+      "enabled_capabilities": [
+        "bridge"
+      ],
+      "management_addresses": [
+        "10.20.30.1"
+      ],
+      "port_vlan_id": 100,
+      "vlan_names": [],
+      "ttl": 120,
+      "first_seen": "2026-01-01T00:00:00Z",
+      "last_seen": "2026-01-01T00:00:01Z",
+      "evidence": {
+        "source": "../../testdata/pcap/lldp-single-neighbor.pcap",
+        "packet_id": 1
+      }
+    }
+  ],
+  "conflicts": []
+}

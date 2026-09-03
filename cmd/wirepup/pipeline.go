@@ -7,6 +7,7 @@ import (
 	"github.com/jeonghanlee/wirepup/internal/capture"
 	"github.com/jeonghanlee/wirepup/internal/capture/afpacket"
 	"github.com/jeonghanlee/wirepup/internal/capture/bpf"
+	"github.com/jeonghanlee/wirepup/internal/capture/pcapfile"
 	"github.com/jeonghanlee/wirepup/internal/decode"
 	"github.com/jeonghanlee/wirepup/internal/observation"
 )
@@ -24,6 +25,19 @@ func openLive(g *globalFlags, prog []bpf.Instruction) (capture.Source, error) {
 		return nil, err
 	}
 	return src, nil
+}
+
+// openSource picks the capture file when --pcap is given and the live
+// interface otherwise. Kernel filters apply to live capture only; the
+// display filter covers files.
+func openSource(g *globalFlags, prog []bpf.Instruction) (capture.Source, error) {
+	if g.pcap != "" {
+		if g.iface != "" {
+			return nil, fmt.Errorf("%w: use either --pcap or -i, not both", errUsage)
+		}
+		return pcapfile.Open(g.pcap)
+	}
+	return openLive(g, prog)
 }
 
 // runSource drains a source through the decode pipeline into the sink

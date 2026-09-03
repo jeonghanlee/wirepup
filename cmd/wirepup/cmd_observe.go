@@ -18,21 +18,26 @@ func runObserve(ctx context.Context, e *env, args []string) int {
 	if ok, code := parse(fs, args); !ok {
 		return code
 	}
+	return observeWith(ctx, e, &g)
+}
+
+// observeWith runs the event stream over the selected source.
+func observeWith(ctx context.Context, e *env, g *globalFlags) int {
 	prog, display, err := filterFor(g.protocols)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitCodeFor(err)
 	}
-	src, err := openLive(&g, prog)
+	src, err := openSource(g, prog)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitCodeFor(err)
 	}
 	defer src.Close()
-	if !g.quiet {
+	if !g.quiet && g.pcap == "" {
 		fmt.Fprintf(e.stderr, "Listening on %s (passive: nothing is transmitted)...\n", src.Name())
 	}
-	ctx, cancel := withTimeout(ctx, &g)
+	ctx, cancel := withTimeout(ctx, g)
 	defer cancel()
 	show := func(obs []observation.Observation) {
 		for _, o := range obs {
@@ -48,7 +53,7 @@ func runObserve(ctx context.Context, e *env, args []string) int {
 		}
 	}
 	ds, cs, err := runSource(ctx, src, show)
-	reportStats(e, &g, ds, cs)
+	reportStats(e, g, ds, cs)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitCodeFor(err)

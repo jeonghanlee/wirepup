@@ -44,6 +44,7 @@ type globalFlags struct {
 	noPromisc bool
 	ouiFile   string
 	protocols string
+	pcap      string
 }
 
 func (g *globalFlags) register(fs *flag.FlagSet) {
@@ -56,6 +57,7 @@ func (g *globalFlags) register(fs *flag.FlagSet) {
 	fs.BoolVar(&g.noPromisc, "no-promisc", false, "do not enable promiscuous mode")
 	fs.StringVar(&g.ouiFile, "oui-file", "", "IEEE oui.txt to use for vendor hints")
 	fs.StringVar(&g.protocols, "protocol", "", "comma-separated protocol filter (for example arp,lldp)")
+	fs.StringVar(&g.pcap, "pcap", "", "read from a capture file instead of an interface")
 }
 
 // command is one subcommand.
@@ -75,6 +77,8 @@ var commands = []command{
 	{"interfaces", "list local interfaces (passive)", runInterfaces},
 	{"observe", "print a passive event stream", runObserve},
 	{"discover", "passive device discovery", runDiscover},
+	{"capture", "write frames to a PCAP/PCAPNG file (passive)", runCapture},
+	{"read", "replay a capture file offline", runRead},
 	{"version", "print the version", runVersion},
 }
 

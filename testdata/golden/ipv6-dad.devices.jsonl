@@ -1,0 +1,73 @@
+{"schema":"wirepup/device-event/1","time":"2026-01-01T00:00:00Z","change":"new_device","via":"Ethernet","device":{"id":"00:80:f4:12:34:56","macs":["00:80:f4:12:34:56"],"mac_locally_administered":false,"vendor_hint":"Example Controls GmbH","ipv4":[],"ipv6":[],"names":[],"protocols":[],"first_seen":"2026-01-01T00:00:00Z","last_seen":"2026-01-01T00:00:00Z","local":false,"ipv6_router":false,"vlans":[],"vlan":"unknown","confidence":"weak_hint","timeline":[{"time":"2026-01-01T00:00:00Z","text":"MAC observed","evidence":{"source":"../../testdata/pcap/ipv6-dad.pcap","packet_id":1}}]},"evidence":{"source":"../../testdata/pcap/ipv6-dad.pcap","packet_id":1}}
+{"schema":"wirepup/device-event/1","time":"2026-01-01T00:00:00Z","change":"update","via":"NDP DAD","method":"IPv6 Link-Local","address":"fe80::280:f4ff:fe12:3456","device":{"id":"00:80:f4:12:34:56","macs":["00:80:f4:12:34:56"],"mac_locally_administered":false,"vendor_hint":"Example Controls GmbH","ipv4":[],"ipv6":[{"address":"fe80::280:f4ff:fe12:3456","state":"probing","via":"NDP DAD","first_seen":"2026-01-01T00:00:00Z","last_seen":"2026-01-01T00:00:00Z","evidence":{"source":"../../testdata/pcap/ipv6-dad.pcap","packet_id":1}}],"names":[],"protocols":["ndp"],"first_seen":"2026-01-01T00:00:00Z","last_seen":"2026-01-01T00:00:00Z","local":false,"ipv6_router":false,"vlans":[],"vlan":"unknown","confidence":"strong_hint","timeline":[{"time":"2026-01-01T00:00:00Z","text":"MAC observed","evidence":{"source":"../../testdata/pcap/ipv6-dad.pcap","packet_id":1}},{"time":"2026-01-01T00:00:00Z","text":"DAD probe fe80::280:f4ff:fe12:3456","evidence":{"source":"../../testdata/pcap/ipv6-dad.pcap","packet_id":1}}]},"evidence":{"source":"../../testdata/pcap/ipv6-dad.pcap","packet_id":1}}
+{"schema":"wirepup/device-event/1","time":"2026-01-01T00:00:01Z","change":"update","via":"NDP Advertisement","method":"IPv6 Link-Local","address":"fe80::280:f4ff:fe12:3456","device":{"id":"00:80:f4:12:34:56","macs":["00:80:f4:12:34:56"],"mac_locally_administered":false,"primary_ipv6":"fe80::280:f4ff:fe12:3456","vendor_hint":"Example Controls GmbH","ipv4":[],"ipv6":[{"address":"fe80::280:f4ff:fe12:3456","state":"claimed","via":"NDP Advertisement","first_seen":"2026-01-01T00:00:00Z","last_seen":"2026-01-01T00:00:01Z","evidence":{"source":"../../testdata/pcap/ipv6-dad.pcap","packet_id":2}}],"names":[],"protocols":["ndp"],"first_seen":"2026-01-01T00:00:00Z","last_seen":"2026-01-01T00:00:01Z","local":false,"ipv6_router":false,"vlans":[],"vlan":"unknown","confidence":"confirmed","timeline":[{"time":"2026-01-01T00:00:00Z","text":"MAC observed","evidence":{"source":"../../testdata/pcap/ipv6-dad.pcap","packet_id":1}},{"time":"2026-01-01T00:00:00Z","text":"DAD probe fe80::280:f4ff:fe12:3456","evidence":{"source":"../../testdata/pcap/ipv6-dad.pcap","packet_id":1}},{"time":"2026-01-01T00:00:01Z","text":"NDP advertisement fe80::280:f4ff:fe12:3456","evidence":{"source":"../../testdata/pcap/ipv6-dad.pcap","packet_id":2}}]},"evidence":{"source":"../../testdata/pcap/ipv6-dad.pcap","packet_id":2}}
+{
+  "schema": "wirepup/devices/1",
+  "source": "../../testdata/pcap/ipv6-dad.pcap",
+  "generated_at": "2026-01-01T00:00:01Z",
+  "oui_file": "../../testdata/fixtures/oui/oui.txt",
+  "devices": [
+    {
+      "id": "00:80:f4:12:34:56",
+      "macs": [
+        "00:80:f4:12:34:56"
+      ],
+      "mac_locally_administered": false,
+      "primary_ipv6": "fe80::280:f4ff:fe12:3456",
+      "vendor_hint": "Example Controls GmbH",
+      "ipv4": [],
+      "ipv6": [
+        {
+          "address": "fe80::280:f4ff:fe12:3456",
+          "state": "claimed",
+          "via": "NDP Advertisement",
+          "first_seen": "2026-01-01T00:00:00Z",
+          "last_seen": "2026-01-01T00:00:01Z",
+          "evidence": {
+            "source": "../../testdata/pcap/ipv6-dad.pcap",
+            "packet_id": 2
+          }
+        }
+      ],
+      "names": [],
+      "protocols": [
+        "ndp"
+      ],
+      "first_seen": "2026-01-01T00:00:00Z",
+      "last_seen": "2026-01-01T00:00:01Z",
+      "local": false,
+      "ipv6_router": false,
+      "vlans": [],
+      "vlan": "unknown",
+      "confidence": "confirmed",
+      "timeline": [
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "text": "MAC observed",
+          "evidence": {
+            "source": "../../testdata/pcap/ipv6-dad.pcap",
+            "packet_id": 1
+          }
+        },
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "text": "DAD probe fe80::280:f4ff:fe12:3456",
+          "evidence": {
+            "source": "../../testdata/pcap/ipv6-dad.pcap",
+            "packet_id": 1
+          }
+        },
+        {
+          "time": "2026-01-01T00:00:01Z",
+          "text": "NDP advertisement fe80::280:f4ff:fe12:3456",
+          "evidence": {
+            "source": "../../testdata/pcap/ipv6-dad.pcap",
+            "packet_id": 2
+          }
+        }
+      ]
+    }
+  ],
+  "neighbors": [],
+  "conflicts": []
+}

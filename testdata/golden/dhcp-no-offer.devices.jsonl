@@ -1,0 +1,115 @@
+{"schema":"wirepup/device-event/1","time":"2026-01-01T00:00:00Z","change":"new_device","via":"Ethernet","device":{"id":"00:80:f4:12:34:56","macs":["00:80:f4:12:34:56"],"mac_locally_administered":false,"vendor_hint":"Example Controls GmbH","ipv4":[],"ipv6":[],"names":[],"protocols":[],"first_seen":"2026-01-01T00:00:00Z","last_seen":"2026-01-01T00:00:00Z","local":false,"ipv6_router":false,"vlans":[],"vlan":"unknown","confidence":"weak_hint","timeline":[{"time":"2026-01-01T00:00:00Z","text":"MAC observed","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":1}}]},"evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":1}}
+{"schema":"wirepup/device-event/1","time":"2026-01-01T00:00:03Z","change":"update","via":"ARP Probe","method":"IPv4 Link-Local / Auto-IP","address":"169.254.22.31","device":{"id":"00:80:f4:12:34:56","macs":["00:80:f4:12:34:56"],"mac_locally_administered":false,"vendor_hint":"Example Controls GmbH","ipv4":[{"address":"169.254.22.31","state":"probing","via":"ARP Probe","first_seen":"2026-01-01T00:00:03Z","last_seen":"2026-01-01T00:00:03Z","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":4}}],"ipv6":[],"names":[{"value":"ioc-pc","via":"DHCP","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":1}}],"protocols":["arp","dhcp"],"first_seen":"2026-01-01T00:00:00Z","last_seen":"2026-01-01T00:00:03Z","local":false,"ipv6_router":false,"vlans":[],"vlan":"unknown","confidence":"strong_hint","timeline":[{"time":"2026-01-01T00:00:00Z","text":"MAC observed","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":1}},{"time":"2026-01-01T00:00:00Z","text":"DHCP name ioc-pc","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":1}},{"time":"2026-01-01T00:00:00Z","text":"DHCP discover","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":1}},{"time":"2026-01-01T00:00:01Z","text":"DHCP discover","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":2}},{"time":"2026-01-01T00:00:02Z","text":"DHCP discover","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":3}},{"time":"2026-01-01T00:00:03Z","text":"ARP probe 169.254.22.31","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":4}}]},"evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":4}}
+{"schema":"wirepup/device-event/1","time":"2026-01-01T00:00:04Z","change":"update","via":"ARP Announcement","method":"IPv4 Link-Local / Auto-IP","address":"169.254.22.31","device":{"id":"00:80:f4:12:34:56","macs":["00:80:f4:12:34:56"],"mac_locally_administered":false,"primary_ipv4":"169.254.22.31","vendor_hint":"Example Controls GmbH","ipv4":[{"address":"169.254.22.31","state":"claimed","via":"ARP Announcement","first_seen":"2026-01-01T00:00:03Z","last_seen":"2026-01-01T00:00:04Z","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":5}}],"ipv6":[],"names":[{"value":"ioc-pc","via":"DHCP","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":1}}],"protocols":["arp","dhcp"],"first_seen":"2026-01-01T00:00:00Z","last_seen":"2026-01-01T00:00:04Z","local":false,"ipv6_router":false,"vlans":[],"vlan":"unknown","confidence":"confirmed","timeline":[{"time":"2026-01-01T00:00:00Z","text":"MAC observed","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":1}},{"time":"2026-01-01T00:00:00Z","text":"DHCP name ioc-pc","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":1}},{"time":"2026-01-01T00:00:00Z","text":"DHCP discover","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":1}},{"time":"2026-01-01T00:00:01Z","text":"DHCP discover","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":2}},{"time":"2026-01-01T00:00:02Z","text":"DHCP discover","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":3}},{"time":"2026-01-01T00:00:03Z","text":"ARP probe 169.254.22.31","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":4}},{"time":"2026-01-01T00:00:04Z","text":"ARP announcement 169.254.22.31","evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":5}}]},"evidence":{"source":"../../testdata/pcap/dhcp-no-offer.pcap","packet_id":5}}
+{
+  "schema": "wirepup/devices/1",
+  "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+  "generated_at": "2026-01-01T00:00:04Z",
+  "oui_file": "../../testdata/fixtures/oui/oui.txt",
+  "devices": [
+    {
+      "id": "00:80:f4:12:34:56",
+      "macs": [
+        "00:80:f4:12:34:56"
+      ],
+      "mac_locally_administered": false,
+      "primary_ipv4": "169.254.22.31",
+      "vendor_hint": "Example Controls GmbH",
+      "ipv4": [
+        {
+          "address": "169.254.22.31",
+          "state": "claimed",
+          "via": "ARP Announcement",
+          "first_seen": "2026-01-01T00:00:03Z",
+          "last_seen": "2026-01-01T00:00:04Z",
+          "evidence": {
+            "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+            "packet_id": 5
+          }
+        }
+      ],
+      "ipv6": [],
+      "names": [
+        {
+          "value": "ioc-pc",
+          "via": "DHCP",
+          "evidence": {
+            "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+            "packet_id": 1
+          }
+        }
+      ],
+      "protocols": [
+        "arp",
+        "dhcp"
+      ],
+      "first_seen": "2026-01-01T00:00:00Z",
+      "last_seen": "2026-01-01T00:00:04Z",
+      "local": false,
+      "ipv6_router": false,
+      "vlans": [],
+      "vlan": "unknown",
+      "confidence": "confirmed",
+      "timeline": [
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "text": "MAC observed",
+          "evidence": {
+            "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+            "packet_id": 1
+          }
+        },
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "text": "DHCP name ioc-pc",
+          "evidence": {
+            "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+            "packet_id": 1
+          }
+        },
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "text": "DHCP discover",
+          "evidence": {
+            "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+            "packet_id": 1
+          }
+        },
+        {
+          "time": "2026-01-01T00:00:01Z",
+          "text": "DHCP discover",
+          "evidence": {
+            "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+            "packet_id": 2
+          }
+        },
+        {
+          "time": "2026-01-01T00:00:02Z",
+          "text": "DHCP discover",
+          "evidence": {
+            "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+            "packet_id": 3
+          }
+        },
+        {
+          "time": "2026-01-01T00:00:03Z",
+          "text": "ARP probe 169.254.22.31",
+          "evidence": {
+            "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+            "packet_id": 4
+          }
+        },
+        {
+          "time": "2026-01-01T00:00:04Z",
+          "text": "ARP announcement 169.254.22.31",
+          "evidence": {
+            "source": "../../testdata/pcap/dhcp-no-offer.pcap",
+            "packet_id": 5
+          }
+        }
+      ]
+    }
+  ],
+  "neighbors": [],
+  "conflicts": []
+}
