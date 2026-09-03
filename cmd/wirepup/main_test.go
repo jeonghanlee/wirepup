@@ -83,3 +83,30 @@ func TestDiscoverRejectsMissingExplicitOUIFile(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, errs)
 	}
 }
+
+func TestActiveCommandArgumentChecks(t *testing.T) {
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"probe", "-i", "lo"}, "--arp"},
+		{[]string{"probe", "-i", "lo", "--arp", "10.0.0.0/16", "--yes"}, "larger than /24"},
+		{[]string{"probe", "-i", "lo", "--arp", "junk", "--yes"}, "--arp"},
+		{[]string{"connect", "192.168.1.100"}, "-i"},
+		{[]string{"connect", "-i", "lo"}, "target address or --address"},
+		{[]string{"connect", "-i", "lo", "bad-target"}, "IPv4 address"},
+		{[]string{"connect", "-i", "lo", "--address", "192.168.1.254"}, "--address must be"},
+		{[]string{"disconnect", "not-an-address"}, "address"},
+	}
+	for _, c := range cases {
+		code, _, errs := runCLI(t, c.args...)
+		if code != exitUsage || !strings.Contains(errs, c.want) {
+			t.Fatalf("%v: exit %d, stderr %q (want %q)", c.args, code, errs, c.want)
+		}
+	}
+	// A non-terminal stdin without --yes must refuse before touching anything.
+	code, _, errs := runCLI(t, "connect", "-i", "lo", "--address", "192.0.2.254/24")
+	if code != exitUsage || !strings.Contains(errs, "--yes") {
+		t.Fatalf("no-terminal connect: exit %d %s", code, errs)
+	}
+}

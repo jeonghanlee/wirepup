@@ -188,11 +188,21 @@ func Diagnosis(w io.Writer, d output.Diagnosis) {
 		}
 		fmt.Fprintf(w, "Target %s: %s on %s\n\n", d.Target, seen, d.Interface)
 	}
-	section(w, "Observed", d.Observed)
-	section(w, "Inferred", d.Inferred)
-	section(w, "Recommended", d.Recommended)
+	passive := len(d.Executed) == 0
+	if passive {
+		section(w, "Observed", d.Observed)
+		section(w, "Inferred", d.Inferred)
+		section(w, "Recommended", d.Recommended)
+		fmt.Fprintln(w, "Executed")
+		fmt.Fprintln(w, "  (none: no host network configuration is changed without an explicit connect command)")
+		return
+	}
+	if len(d.Observed)+len(d.Inferred)+len(d.Recommended) > 0 {
+		section(w, "Observed", d.Observed)
+		section(w, "Inferred", d.Inferred)
+		section(w, "Recommended", d.Recommended)
+	}
 	section(w, "Executed", d.Executed)
-	fmt.Fprintln(w, "No host network configuration is changed without an explicit connect command.")
 }
 
 func section(w io.Writer, title string, fs []output.Finding) {

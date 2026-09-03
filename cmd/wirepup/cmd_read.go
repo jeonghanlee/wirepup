@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
+	"strings"
 )
 
 // runRead replays a capture file through the same pipeline as live
@@ -34,14 +36,15 @@ func runRead(ctx context.Context, e *env, args []string) int {
 
 // positional splits one leading or trailing positional argument from
 // the flags so that both "read file --json" and "read --json file" work.
-func positional(fs interface{ Parse([]string) error }, args []string) (string, []string, error) {
+// A registered non-boolean flag consumes the argument that follows it.
+func positional(fs *flag.FlagSet, args []string) (string, []string, error) {
 	var file string
 	var rest []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
-		if len(a) > 0 && a[0] == '-' {
+		if len(a) > 1 && a[0] == '-' {
 			rest = append(rest, a)
-			if !hasValue(a) && i+1 < len(args) && needsValue(a) {
+			if !strings.Contains(a, "=") && i+1 < len(args) && takesValue(fs, a) {
 				rest = append(rest, args[i+1])
 				i++
 			}
@@ -55,27 +58,14 @@ func positional(fs interface{ Parse([]string) error }, args []string) (string, [
 	return file, rest, nil
 }
 
-func hasValue(a string) bool {
-	for _, c := range a {
-		if c == '=' {
-			return true
-		}
+// takesValue reports whether the flag is registered and not boolean.
+func takesValue(fs *flag.FlagSet, a string) bool {
+	f := fs.Lookup(strings.TrimLeft(a, "-"))
+	if f == nil {
+		return false
 	}
-	return false
-}
-
-// needsValue lists the flags that take a separate value argument.
-func needsValue(a string) bool {
-	switch trimDashes(a) {
-	case "i", "interface", "timeout", "oui-file", "protocol", "pcap", "local":
-		return true
+	if b, ok := f.Value.(interface{ IsBoolFlag() bool }); ok && b.IsBoolFlag() {
+		return false
 	}
-	return false
-}
-
-func trimDashes(a string) string {
-	for len(a) > 0 && a[0] == '-' {
-		a = a[1:]
-	}
-	return a
+	return true
 }

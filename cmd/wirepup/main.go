@@ -82,6 +82,9 @@ var commands = []command{
 	{"capture", "write frames to a PCAP/PCAPNG file (passive)", runCapture},
 	{"read", "replay a capture file offline", runRead},
 	{"diagnose", "rule-based diagnosis (passive)", runDiagnose},
+	{"probe", "bounded ARP sweep (ACTIVE: transmits)", runProbe},
+	{"connect", "add a temporary secondary IPv4 address (ACTIVE: changes host)", runConnect},
+	{"disconnect", "remove WirePup-created temporary addresses (ACTIVE: changes host)", runDisconnect},
 	{"version", "print the version", runVersion},
 }
 
@@ -128,6 +131,7 @@ func usage(w io.Writer) {
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Passive commands transmit nothing and change no host configuration.")
+	fmt.Fprintln(w, "probe, connect, and disconnect are the only commands that transmit or change the host.")
 }
 
 // newFlagSet returns a flag set that reports usage errors without exiting.

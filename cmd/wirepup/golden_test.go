@@ -99,7 +99,7 @@ func TestDiagnoseTextAndExitCodes(t *testing.T) {
 	if code != exitOK {
 		t.Fatalf("exit %d", code)
 	}
-	for _, want := range []string{"Observed", "local capture IPv4 = 10.20.30.51/24", "Inferred", "outside every configured local IPv4 subnet", "Recommended", "192.168.1.254", "Executed", "(none)", "explicit connect"} {
+	for _, want := range []string{"Observed", "local capture IPv4 = 10.20.30.51/24", "Inferred", "outside every configured local IPv4 subnet", "Recommended", "192.168.1.254", "Executed", "(none", "explicit connect"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in:\n%s", want, out)
 		}
