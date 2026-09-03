@@ -110,3 +110,10 @@ func TestActiveCommandArgumentChecks(t *testing.T) {
 		t.Fatalf("no-terminal connect: exit %d %s", code, errs)
 	}
 }
+
+func TestTUIRequiresTerminal(t *testing.T) {
+	code, _, errs := runCLI(t, "tui", "-i", "lo")
+	if code != exitUsage || !strings.Contains(errs, "terminal") {
+		t.Fatalf("exit %d: %s", code, errs)
+	}
+}

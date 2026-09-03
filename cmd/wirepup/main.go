@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/netip"
 	"os"
 	"os/signal"
 	"sort"
@@ -83,6 +84,7 @@ var commands = []command{
 	{"read", "replay a capture file offline", runRead},
 	{"diagnose", "rule-based diagnosis (passive)", runDiagnose},
 	{"epics", "EPICS CA/PVA tools: observe, find, diagnose", runEPICS},
+	{"tui", "interactive terminal view (passive)", runTUI},
 	{"probe", "bounded ARP sweep (ACTIVE: transmits)", runProbe},
 	{"connect", "add a temporary secondary IPv4 address (ACTIVE: changes host)", runConnect},
 	{"disconnect", "remove WirePup-created temporary addresses (ACTIVE: changes host)", runDisconnect},
@@ -171,6 +173,9 @@ func exitCodeFor(err error) int {
 		return exitError
 	}
 }
+
+// nilAddr is the "no target" value for whole-segment diagnosis.
+var nilAddr netip.Addr
 
 var (
 	errUsage       = errors.New("invalid arguments")
