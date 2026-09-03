@@ -76,3 +76,10 @@ func TestObserveWithoutPrivilege(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, errs)
 	}
 }
+
+func TestDiscoverRejectsMissingExplicitOUIFile(t *testing.T) {
+	code, _, errs := runCLI(t, "discover", "-i", "lo", "--oui-file", "/nonexistent/oui.txt")
+	if code != exitUsage || !strings.Contains(errs, "oui") {
+		t.Fatalf("exit %d: %s", code, errs)
+	}
+}

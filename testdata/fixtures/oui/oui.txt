@@ -1,0 +1,20 @@
+OUI/MA-L                                                    Organization                                 
+company_id                                                  Organization                                 
+                                                            Address                                      
+
+00-80-F4   (hex)		Example Controls GmbH
+0080F4     (base 16)		Example Controls GmbH
+				Musterstrasse 1
+				Musterstadt    12345
+				DE
+
+00-1C-73   (hex)		Example Networks Inc.
+001C73     (base 16)		Example Networks Inc.
+				1 Switch Way
+				Anytown  CA  90000
+				US
+
+52-54-00   (hex)		Example Virtual Machines
+525400     (base 16)		Example Virtual Machines
+				Nowhere
+				XX

@@ -63,7 +63,7 @@ func wantObservation(o observation.Observation, display map[string]bool, verbose
 	if display != nil {
 		return display[proto]
 	}
-	if proto == "ethernet" {
+	if hiddenProtocols[proto] {
 		return verbose
 	}
 	return true

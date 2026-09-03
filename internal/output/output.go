@@ -7,13 +7,17 @@ package output
 import (
 	"fmt"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/jeonghanlee/wirepup/internal/device"
 	"github.com/jeonghanlee/wirepup/internal/interfaces"
 	"github.com/jeonghanlee/wirepup/internal/observation"
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
+	"github.com/jeonghanlee/wirepup/internal/protocol/dhcpv4"
 	"github.com/jeonghanlee/wirepup/internal/protocol/ethernet"
+	"github.com/jeonghanlee/wirepup/internal/protocol/ipv4"
+	"github.com/jeonghanlee/wirepup/internal/protocol/lldp"
 )
 
 // Schema identifiers; the major number changes only on a breaking change.
@@ -64,38 +68,63 @@ type Event struct {
 
 // DeviceEvent is one change to the device table as a stream record.
 type DeviceEvent struct {
-	Schema  string    `json:"schema"`
-	Time    time.Time `json:"time"`
-	Change  string    `json:"change"`
-	Via     string    `json:"via"`
-	Method  string    `json:"method,omitempty"`
-	Address string    `json:"address,omitempty"`
-	Device  Device    `json:"device"`
-	Ref     Ref       `json:"evidence"`
+	Schema   string    `json:"schema"`
+	Time     time.Time `json:"time"`
+	Change   string    `json:"change"`
+	Via      string    `json:"via"`
+	Method   string    `json:"method,omitempty"`
+	Address  string    `json:"address,omitempty"`
+	Device   Device    `json:"device"`
+	Neighbor *Neighbor `json:"neighbor,omitempty"`
+	Ref      Ref       `json:"evidence"`
 }
 
 // Devices is the document for the discover command.
 type Devices struct {
-	Schema      string    `json:"schema"`
-	Source      string    `json:"source"`
-	GeneratedAt time.Time `json:"generated_at"`
-	Devices     []Device  `json:"devices"`
+	Schema      string     `json:"schema"`
+	Source      string     `json:"source"`
+	GeneratedAt time.Time  `json:"generated_at"`
+	OUIFile     string     `json:"oui_file,omitempty"`
+	Devices     []Device   `json:"devices"`
+	Neighbors   []Neighbor `json:"neighbors"`
+}
+
+// Neighbor is one LLDP-advertising network device.
+type Neighbor struct {
+	ID          string    `json:"id"`
+	ChassisID   string    `json:"chassis_id"`
+	PortID      string    `json:"port_id"`
+	SourceMAC   string    `json:"source_mac"`
+	SystemName  string    `json:"system_name,omitempty"`
+	SystemDesc  string    `json:"system_description,omitempty"`
+	PortDesc    string    `json:"port_description,omitempty"`
+	Caps        []string  `json:"capabilities"`
+	EnabledCaps []string  `json:"enabled_capabilities"`
+	MgmtAddrs   []string  `json:"management_addresses"`
+	PortVLANID  uint16    `json:"port_vlan_id,omitempty"`
+	VLANNames   []string  `json:"vlan_names"`
+	MaxFrame    uint16    `json:"max_frame_size,omitempty"`
+	TTL         uint16    `json:"ttl"`
+	FirstSeen   time.Time `json:"first_seen"`
+	LastSeen    time.Time `json:"last_seen"`
+	Ref         Ref       `json:"evidence"`
 }
 
 // Device is one inferred device.
 type Device struct {
-	ID         string          `json:"id"`
-	MACs       []string        `json:"macs"`
-	Vendor     string          `json:"vendor_hint,omitempty"`
-	IPv4       []Address       `json:"ipv4"`
-	IPv6       []Address       `json:"ipv6"`
-	Names      []Name          `json:"names"`
-	Protocols  []string        `json:"protocols"`
-	FirstSeen  time.Time       `json:"first_seen"`
-	LastSeen   time.Time       `json:"last_seen"`
-	Local      bool            `json:"local"`
-	Confidence string          `json:"confidence"`
-	Timeline   []TimelineEntry `json:"timeline"`
+	ID           string          `json:"id"`
+	MACs         []string        `json:"macs"`
+	Vendor       string          `json:"vendor_hint,omitempty"`
+	IPv4         []Address       `json:"ipv4"`
+	IPv6         []Address       `json:"ipv6"`
+	Names        []Name          `json:"names"`
+	Protocols    []string        `json:"protocols"`
+	FirstSeen    time.Time       `json:"first_seen"`
+	LastSeen     time.Time       `json:"last_seen"`
+	Local        bool            `json:"local"`
+	Confidence   string          `json:"confidence"`
+	Timeline     []TimelineEntry `json:"timeline"`
+	WeakOverflow int             `json:"seen_addresses_dropped,omitempty"`
 }
 
 // Address is one address claim with its evidence.
@@ -185,10 +214,89 @@ func EventFrom(o observation.Observation) Event {
 		e.Fields["target_ip"] = v.TargetIP.String()
 		e.Fields["link_local"] = arp.IsLinkLocal(v.SenderIP) || arp.IsLinkLocal(v.TargetIP)
 		e.Summary = arpSummary(v)
+	case lldp.Observation:
+		e.Fields["source_mac"] = v.SourceMAC.String()
+		e.Fields["chassis_id"] = v.ChassisID
+		e.Fields["port_id"] = v.PortID
+		e.Fields["ttl"] = v.TTL
+		e.Fields["system_name"] = v.SystemName
+		e.Fields["system_description"] = v.SystemDescription
+		e.Fields["port_description"] = v.PortDescription
+		e.Fields["capabilities"] = emptyList(v.Capabilities)
+		e.Fields["enabled_capabilities"] = emptyList(v.EnabledCaps)
+		e.Fields["management_addresses"] = emptyList(v.ManagementAddrs)
+		e.Fields["port_vlan_id"] = v.PortVLANID
+		e.Fields["vlan_names"] = emptyList(v.VLANSummary())
+		e.Fields["max_frame_size"] = v.MaxFrameSize
+		e.Fields["malformed"] = v.Malformed
+		e.Summary = fmt.Sprintf("lldp %s port %s (%s) vlan %s mgmt %s", dashIf(v.SystemName), dashIf(v.PortID), dashIf(v.PortDescription), vlanText(v.PortVLANID), strings.Join(v.ManagementAddrs, ","))
+	case ipv4.Observation:
+		e.Fields["src"] = v.Src.String()
+		e.Fields["dst"] = v.Dst.String()
+		e.Fields["protocol"] = ipv4.ProtocolName(v.Protocol)
+		e.Fields["ttl"] = v.TTL
+		e.Fields["length"] = v.Length
+		e.Fields["fragment"] = v.Fragment
+		e.Summary = fmt.Sprintf("ipv4 %s -> %s %s len %d ttl %d", v.Src, v.Dst, ipv4.ProtocolName(v.Protocol), v.Length, v.TTL)
+	case dhcpv4.Observation:
+		e.Fields["message_type"] = v.TypeName()
+		e.Fields["xid"] = fmt.Sprintf("0x%08x", v.XID)
+		e.Fields["client_mac"] = v.ClientMAC.String()
+		e.Fields["client_id"] = v.ClientID
+		e.Fields["hostname"] = v.Hostname
+		e.Fields["client_ip"] = addrOrEmpty(v.ClientIP)
+		e.Fields["your_ip"] = addrOrEmpty(v.YourIP)
+		e.Fields["requested_ip"] = addrOrEmpty(v.RequestedIP)
+		e.Fields["server_id"] = addrOrEmpty(v.ServerID)
+		e.Fields["lease_seconds"] = v.LeaseTime
+		e.Fields["src"] = v.SrcIP.String()
+		e.Fields["dst"] = v.DstIP.String()
+		e.Summary = dhcpSummary(v)
 	default:
 		e.Summary = string(o.Kind())
 	}
 	return e
+}
+
+func dhcpSummary(v dhcpv4.Observation) string {
+	switch v.MessageType {
+	case dhcpv4.Offer, dhcpv4.ACK:
+		return fmt.Sprintf("dhcp %s %s -> client %s server %s", v.TypeName(), addrOrEmpty(v.YourIP), v.ClientMAC, addrOrEmpty(v.ServerID))
+	case dhcpv4.Request:
+		return fmt.Sprintf("dhcp request %s from %s (%s)", addrOrEmpty(v.RequestedIP), v.ClientMAC, dashIf(v.Hostname))
+	case dhcpv4.NAK:
+		return fmt.Sprintf("dhcp nak to %s from %s", v.ClientMAC, addrOrEmpty(v.ServerID))
+	default:
+		return fmt.Sprintf("dhcp %s from %s (%s)", v.TypeName(), v.ClientMAC, dashIf(v.Hostname))
+	}
+}
+
+func addrOrEmpty(a netip.Addr) string {
+	if !a.IsValid() || a.IsUnspecified() {
+		return ""
+	}
+	return a.String()
+}
+
+func dashIf(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
+
+func vlanText(id uint16) string {
+	if id == 0 {
+		return "unknown"
+	}
+	return fmt.Sprintf("%d", id)
+}
+
+func emptyList(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }
 
 func arpSummary(v arp.Observation) string {
@@ -207,18 +315,19 @@ func arpSummary(v arp.Observation) string {
 // DeviceFrom converts a device record.
 func DeviceFrom(d device.Device) Device {
 	out := Device{
-		ID:         d.ID,
-		MACs:       append([]string{}, d.MACs...),
-		Vendor:     d.Vendor,
-		IPv4:       addresses(d.IPv4),
-		IPv6:       addresses(d.IPv6),
-		Names:      make([]Name, 0, len(d.Names)),
-		Protocols:  append([]string{}, d.Protocols...),
-		FirstSeen:  d.FirstSeen,
-		LastSeen:   d.LastSeen,
-		Local:      d.Local,
-		Confidence: string(d.Confidence),
-		Timeline:   make([]TimelineEntry, 0, len(d.Timeline)),
+		ID:           d.ID,
+		MACs:         append([]string{}, d.MACs...),
+		Vendor:       d.Vendor,
+		IPv4:         addresses(d.IPv4),
+		IPv6:         addresses(d.IPv6),
+		Names:        make([]Name, 0, len(d.Names)),
+		Protocols:    append([]string{}, d.Protocols...),
+		FirstSeen:    d.FirstSeen,
+		LastSeen:     d.LastSeen,
+		Local:        d.Local,
+		Confidence:   string(d.Confidence),
+		Timeline:     make([]TimelineEntry, 0, len(d.Timeline)),
+		WeakOverflow: d.WeakOverflow,
 	}
 	for _, n := range d.Names {
 		out.Names = append(out.Names, Name{Value: n.Value, Via: n.Via, Ref: refFrom(n.Ref)})
@@ -255,14 +364,44 @@ func DeviceEventFrom(e device.Event) DeviceEvent {
 	if e.Address.IsValid() {
 		out.Address = e.Address.String()
 	}
+	if e.Neighbor != nil {
+		n := NeighborFrom(*e.Neighbor)
+		out.Neighbor = &n
+	}
 	return out
 }
 
+// NeighborFrom converts an LLDP neighbor record.
+func NeighborFrom(n device.Neighbor) Neighbor {
+	return Neighbor{
+		ID:          n.ID,
+		ChassisID:   n.ChassisID,
+		PortID:      n.PortID,
+		SourceMAC:   n.SourceMAC,
+		SystemName:  n.SystemName,
+		SystemDesc:  n.SystemDesc,
+		PortDesc:    n.PortDesc,
+		Caps:        emptyList(n.Caps),
+		EnabledCaps: emptyList(n.EnabledCaps),
+		MgmtAddrs:   emptyList(n.MgmtAddrs),
+		PortVLANID:  n.PortVLANID,
+		VLANNames:   emptyList(n.VLANNames),
+		MaxFrame:    n.MaxFrame,
+		TTL:         n.TTL,
+		FirstSeen:   n.FirstSeen,
+		LastSeen:    n.LastSeen,
+		Ref:         refFrom(n.Ref),
+	}
+}
+
 // DevicesFrom converts a table snapshot.
-func DevicesFrom(source string, at time.Time, ds []device.Device) Devices {
-	out := Devices{Schema: SchemaDevices, Source: source, GeneratedAt: at, Devices: make([]Device, 0, len(ds))}
+func DevicesFrom(source string, at time.Time, ouiFile string, ds []device.Device, ns []device.Neighbor) Devices {
+	out := Devices{Schema: SchemaDevices, Source: source, GeneratedAt: at, OUIFile: ouiFile, Devices: make([]Device, 0, len(ds)), Neighbors: make([]Neighbor, 0, len(ns))}
 	for _, d := range ds {
 		out.Devices = append(out.Devices, DeviceFrom(d))
+	}
+	for _, n := range ns {
+		out.Neighbors = append(out.Neighbors, NeighborFrom(n))
 	}
 	return out
 }

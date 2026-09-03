@@ -1,10 +1,13 @@
 // Package device correlates typed observations into inferred device
 // records (ADR-0003, ADR-0004). The source MAC is the initial key; a
 // Device stays an inference backed by evidence, never an asserted fact.
-// Merging by hostname or vendor never happens here (R-010).
+// Merging by hostname or vendor never happens here (R-010). LLDP
+// neighbors are kept as their own entity so that switch ports are not
+// folded into endpoint records.
 package device
 
 import (
+	"fmt"
 	"net/netip"
 	"sort"
 	"sync"
@@ -12,14 +15,19 @@ import (
 
 	"github.com/jeonghanlee/wirepup/internal/observation"
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
+	"github.com/jeonghanlee/wirepup/internal/protocol/dhcpv4"
 	"github.com/jeonghanlee/wirepup/internal/protocol/ethernet"
+	"github.com/jeonghanlee/wirepup/internal/protocol/ipv4"
+	"github.com/jeonghanlee/wirepup/internal/protocol/lldp"
 )
 
 // Address states, from weakest to strongest claim.
 const (
+	StateSeen     = "seen"     // used as an IP source address behind this MAC (weak: routers forward)
 	StateProbing  = "probing"  // the device is testing the address (ARP probe target)
-	StateObserved = "observed" // the device used the address as a sender
+	StateObserved = "observed" // the device used the address as an ARP sender
 	StateClaimed  = "claimed"  // the device announced the address (gratuitous ARP)
+	StateLeased   = "leased"   // a DHCP server acknowledged the address for this client
 )
 
 // Via labels name the evidence that produced an event.
@@ -29,23 +37,39 @@ const (
 	ViaARPAnnouncement = "ARP Announcement"
 	ViaARPRequest      = "ARP Request"
 	ViaARPReply        = "ARP Reply"
+	ViaIPv4            = "IPv4 packet"
+	ViaDHCP            = "DHCP"
+	ViaDHCPACK         = "DHCP ACK"
+	ViaDHCPServer      = "DHCP server"
+	ViaLLDP            = "LLDP"
 )
 
 // Event changes.
 const (
-	ChangeNewDevice = "new_device"
-	ChangeUpdate    = "update"
+	ChangeNewDevice   = "new_device"
+	ChangeUpdate      = "update"
+	ChangeNewNeighbor = "new_neighbor"
 )
 
-// MethodLinkLocal labels IPv4 Link-Local / Auto-IP behavior (R-007).
-const MethodLinkLocal = "IPv4 Link-Local / Auto-IP"
+// Methods label how an address was obtained.
+const (
+	MethodLinkLocal = "IPv4 Link-Local / Auto-IP"
+	MethodDHCP      = "DHCP"
+)
 
 // Protocol labels recorded on a device.
 const (
-	ProtoARP = "arp"
+	ProtoARP        = "arp"
+	ProtoDHCP       = "dhcp"
+	ProtoDHCPServer = "dhcp-server"
+	ProtoLLDP       = "lldp"
 )
 
-var stateRank = map[string]int{StateProbing: 1, StateObserved: 2, StateClaimed: 3}
+// maxWeakAddresses bounds the "seen" addresses kept per device so that a
+// router's MAC does not accumulate every remote source address.
+const maxWeakAddresses = 16
+
+var stateRank = map[string]int{StateSeen: 1, StateProbing: 1, StateObserved: 2, StateClaimed: 3, StateLeased: 3}
 
 // Ref points at the packet that supports a claim.
 type Ref struct {
@@ -84,29 +108,68 @@ type TimelineEntry struct {
 
 // Device is an inferred endpoint.
 type Device struct {
-	ID         string
-	MACs       []string
-	IPv4       []Address
-	IPv6       []Address
-	Names      []Name
-	Vendor     string
-	Protocols  []string
-	FirstSeen  time.Time
-	LastSeen   time.Time
-	Local      bool
-	Confidence observation.Confidence
-	Timeline   []TimelineEntry
+	ID           string
+	MACs         []string
+	IPv4         []Address
+	IPv6         []Address
+	Names        []Name
+	Vendor       string
+	Protocols    []string
+	FirstSeen    time.Time
+	LastSeen     time.Time
+	Local        bool
+	Confidence   observation.Confidence
+	Timeline     []TimelineEntry
+	WeakOverflow int // "seen" addresses not recorded because the cap was reached
+}
+
+// Neighbor is an LLDP-advertising network device, kept apart from
+// endpoint records.
+type Neighbor struct {
+	ID          string
+	ChassisID   string
+	PortID      string
+	SourceMAC   string
+	SystemName  string
+	SystemDesc  string
+	PortDesc    string
+	Caps        []string
+	EnabledCaps []string
+	MgmtAddrs   []string
+	PortVLANID  uint16
+	VLANNames   []string
+	MaxFrame    uint16
+	TTL         uint16
+	FirstSeen   time.Time
+	LastSeen    time.Time
+	Ref         Ref
+}
+
+// DHCPTransaction tracks one client exchange by transaction ID.
+type DHCPTransaction struct {
+	XID       uint32
+	ClientMAC string
+	Discover  time.Time
+	Offer     time.Time
+	Request   time.Time
+	ACK       time.Time
+	NAK       time.Time
+	OfferedIP netip.Addr
+	AckIP     netip.Addr
+	ServerIP  netip.Addr
+	Ref       Ref
 }
 
 // Event describes one change to the table.
 type Event struct {
-	Time    time.Time
-	Change  string
-	Device  Device
-	Via     string
-	Method  string
-	Address netip.Addr
-	Ref     Ref
+	Time     time.Time
+	Change   string
+	Device   Device
+	Neighbor *Neighbor
+	Via      string
+	Method   string
+	Address  netip.Addr
+	Ref      Ref
 }
 
 // Options configure a table.
@@ -119,16 +182,26 @@ type Options struct {
 
 // Table holds the device records.
 type Table struct {
-	mu    sync.Mutex
-	opts  Options
-	local map[string]bool
-	byMAC map[string]*Device
-	order []*Device
+	mu        sync.Mutex
+	opts      Options
+	local     map[string]bool
+	byMAC     map[string]*Device
+	order     []*Device
+	neighbors map[string]*Neighbor
+	norder    []*Neighbor
+	dhcp      map[string]*DHCPTransaction
+	dorder    []*DHCPTransaction
 }
 
 // New returns an empty table.
 func New(opts Options) *Table {
-	t := &Table{opts: opts, local: map[string]bool{}, byMAC: map[string]*Device{}}
+	t := &Table{
+		opts:      opts,
+		local:     map[string]bool{},
+		byMAC:     map[string]*Device{},
+		neighbors: map[string]*Neighbor{},
+		dhcp:      map[string]*DHCPTransaction{},
+	}
 	for _, m := range opts.LocalMACs {
 		t.local[m] = true
 	}
@@ -153,18 +226,50 @@ func (t *Table) Devices() []Device {
 	return out
 }
 
+// Neighbors returns snapshot copies of the LLDP neighbors.
+func (t *Table) Neighbors() []Neighbor {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := make([]Neighbor, 0, len(t.norder))
+	for _, n := range t.norder {
+		out = append(out, neighborSnapshot(n))
+	}
+	return out
+}
+
+// DHCPTransactions returns copies of the tracked exchanges in order of
+// first sighting.
+func (t *Table) DHCPTransactions() []DHCPTransaction {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	out := make([]DHCPTransaction, 0, len(t.dorder))
+	for _, x := range t.dorder {
+		out = append(out, *x)
+	}
+	return out
+}
+
 // Apply folds the observations of one packet into the table and returns
-// the events they produced.
+// the events they produced. The frame observation of the packet supplies
+// the source MAC for protocols that do not carry one.
 func (t *Table) Apply(obs []observation.Observation) []Event {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	var events []Event
+	var frame *ethernet.Observation
 	for _, o := range obs {
 		switch v := o.(type) {
 		case ethernet.Observation:
+			frame = &v
 			events = append(events, t.applyFrame(v)...)
 		case arp.Observation:
 			events = append(events, t.applyARP(v)...)
+		case lldp.Observation:
+			events = append(events, t.applyLLDP(v)...)
+		case ipv4.Observation:
+			events = append(events, t.applyIPv4(frame, v)...)
+		case dhcpv4.Observation:
+			events = append(events, t.applyDHCP(frame, v)...)
 		}
 	}
 	return events
@@ -188,15 +293,149 @@ func (t *Table) applyARP(v arp.Observation) []Event {
 	ref := RefOf(v.Evidence)
 	switch v.Role {
 	case arp.RoleProbe:
-		events = append(events, t.addAddress(d, v.TargetIP, StateProbing, ViaARPProbe, v.Timestamp, ref)...)
+		events = append(events, t.addAddress(d, v.TargetIP, StateProbing, ViaARPProbe, "", v.Timestamp, ref)...)
 	case arp.RoleAnnouncement:
-		events = append(events, t.addAddress(d, v.SenderIP, StateClaimed, ViaARPAnnouncement, v.Timestamp, ref)...)
+		events = append(events, t.addAddress(d, v.SenderIP, StateClaimed, ViaARPAnnouncement, "", v.Timestamp, ref)...)
 	case arp.RoleRequest:
-		events = append(events, t.addAddress(d, v.SenderIP, StateObserved, ViaARPRequest, v.Timestamp, ref)...)
+		events = append(events, t.addAddress(d, v.SenderIP, StateObserved, ViaARPRequest, "", v.Timestamp, ref)...)
 	case arp.RoleReply:
-		events = append(events, t.addAddress(d, v.SenderIP, StateObserved, ViaARPReply, v.Timestamp, ref)...)
+		events = append(events, t.addAddress(d, v.SenderIP, StateObserved, ViaARPReply, "", v.Timestamp, ref)...)
 	}
 	return events
+}
+
+// applyIPv4 binds the packet's source address to the frame's source MAC
+// as a weak "seen" claim; routers forward for many sources, so the cap
+// keeps such records bounded.
+func (t *Table) applyIPv4(frame *ethernet.Observation, v ipv4.Observation) []Event {
+	if frame == nil || !validKey(frame.Source) || !usableIPv4(v.Src) {
+		return nil
+	}
+	d, events := t.touch(frame.Source.String(), v.Timestamp, ViaEthernet, RefOf(v.Evidence))
+	return append(events, t.addAddress(d, v.Src, StateSeen, ViaIPv4, "", v.Timestamp, RefOf(v.Evidence))...)
+}
+
+func (t *Table) applyLLDP(v lldp.Observation) []Event {
+	ref := RefOf(v.Evidence)
+	var events []Event
+	if validKey(v.SourceMAC) {
+		d, ev := t.touch(v.SourceMAC.String(), v.Timestamp, ViaLLDP, ref)
+		events = append(events, ev...)
+		addProtocol(d, ProtoLLDP)
+		if v.SystemName != "" {
+			addName(d, v.SystemName, ViaLLDP, ref, v.Timestamp)
+		}
+	}
+	key := v.ChassisID + "|" + v.PortID
+	if n, ok := t.neighbors[key]; ok {
+		n.LastSeen = v.Timestamp
+		n.TTL = v.TTL
+		return events
+	}
+	n := &Neighbor{
+		ID:          key,
+		ChassisID:   v.ChassisID,
+		PortID:      v.PortID,
+		SourceMAC:   v.SourceMAC.String(),
+		SystemName:  v.SystemName,
+		SystemDesc:  v.SystemDescription,
+		PortDesc:    v.PortDescription,
+		Caps:        append([]string(nil), v.Capabilities...),
+		EnabledCaps: append([]string(nil), v.EnabledCaps...),
+		MgmtAddrs:   append([]string(nil), v.ManagementAddrs...),
+		PortVLANID:  v.PortVLANID,
+		VLANNames:   v.VLANSummary(),
+		MaxFrame:    v.MaxFrameSize,
+		TTL:         v.TTL,
+		FirstSeen:   v.Timestamp,
+		LastSeen:    v.Timestamp,
+		Ref:         ref,
+	}
+	t.neighbors[key] = n
+	t.norder = append(t.norder, n)
+	snap := neighborSnapshot(n)
+	return append(events, Event{Time: v.Timestamp, Change: ChangeNewNeighbor, Neighbor: &snap, Via: ViaLLDP, Ref: ref})
+}
+
+// applyDHCP records the client side by chaddr and the server side by the
+// frame source MAC, and keeps the transaction for diagnosis.
+func (t *Table) applyDHCP(frame *ethernet.Observation, v dhcpv4.Observation) []Event {
+	ref := RefOf(v.Evidence)
+	var events []Event
+	if !validKey(v.ClientMAC) {
+		return nil
+	}
+	cmac := v.ClientMAC.String()
+	client, ev := t.touch(cmac, v.Timestamp, ViaDHCP, ref)
+	events = append(events, ev...)
+	addProtocol(client, ProtoDHCP)
+	if v.Hostname != "" {
+		addName(client, v.Hostname, ViaDHCP, ref, v.Timestamp)
+	}
+	x := t.transaction(v.XID, cmac, v.Timestamp, ref)
+	switch v.MessageType {
+	case dhcpv4.Discover:
+		x.Discover = v.Timestamp
+		addTimeline(client, v.Timestamp, "DHCP discover", ref)
+	case dhcpv4.Request:
+		x.Request = v.Timestamp
+		want := v.RequestedIP
+		if !want.IsValid() || want.IsUnspecified() {
+			want = v.ClientIP
+		}
+		addTimeline(client, v.Timestamp, "DHCP request "+addrText(want), ref)
+	case dhcpv4.Offer:
+		x.Offer = v.Timestamp
+		x.OfferedIP = v.YourIP
+		x.ServerIP = serverAddr(v)
+		addTimeline(client, v.Timestamp, fmt.Sprintf("DHCP offer %s from %s", addrText(v.YourIP), addrText(x.ServerIP)), ref)
+		events = append(events, t.applyDHCPServer(frame, v, ref)...)
+	case dhcpv4.ACK:
+		x.ACK = v.Timestamp
+		x.AckIP = v.YourIP
+		if !x.AckIP.IsValid() || x.AckIP.IsUnspecified() {
+			x.AckIP = v.ClientIP
+		}
+		x.ServerIP = serverAddr(v)
+		events = append(events, t.addAddress(client, x.AckIP, StateLeased, ViaDHCPACK, MethodDHCP, v.Timestamp, ref)...)
+		events = append(events, t.applyDHCPServer(frame, v, ref)...)
+	case dhcpv4.NAK:
+		x.NAK = v.Timestamp
+		x.ServerIP = serverAddr(v)
+		addTimeline(client, v.Timestamp, "DHCP nak from "+addrText(x.ServerIP), ref)
+		events = append(events, t.applyDHCPServer(frame, v, ref)...)
+	}
+	return events
+}
+
+func (t *Table) applyDHCPServer(frame *ethernet.Observation, v dhcpv4.Observation, ref Ref) []Event {
+	if frame == nil || !validKey(frame.Source) {
+		return nil
+	}
+	srv, events := t.touch(frame.Source.String(), v.Timestamp, ViaDHCPServer, ref)
+	addProtocol(srv, ProtoDHCPServer)
+	if a := serverAddr(v); usableIPv4(a) {
+		events = append(events, t.addAddress(srv, a, StateObserved, ViaDHCPServer, "", v.Timestamp, ref)...)
+	}
+	return events
+}
+
+func serverAddr(v dhcpv4.Observation) netip.Addr {
+	if v.ServerID.IsValid() && !v.ServerID.IsUnspecified() {
+		return v.ServerID
+	}
+	return v.SrcIP
+}
+
+func (t *Table) transaction(xid uint32, mac string, at time.Time, ref Ref) *DHCPTransaction {
+	key := fmt.Sprintf("%08x|%s", xid, mac)
+	if x, ok := t.dhcp[key]; ok {
+		return x
+	}
+	x := &DHCPTransaction{XID: xid, ClientMAC: mac, Ref: ref}
+	t.dhcp[key] = x
+	t.dorder = append(t.dorder, x)
+	return x
 }
 
 // touch returns the device for a MAC, creating it (and a new-device
@@ -227,12 +466,11 @@ func (t *Table) touch(mac string, at time.Time, via string, ref Ref) (*Device, [
 
 // addAddress records an IPv4 address claim and emits an update event when
 // the address is new or the claim became stronger.
-func (t *Table) addAddress(d *Device, addr netip.Addr, state, via string, at time.Time, ref Ref) []Event {
+func (t *Table) addAddress(d *Device, addr netip.Addr, state, via, method string, at time.Time, ref Ref) []Event {
 	if !addr.IsValid() || addr.IsUnspecified() {
 		return nil
 	}
-	method := ""
-	if arp.IsLinkLocal(addr) {
+	if method == "" && arp.IsLinkLocal(addr) {
 		method = MethodLinkLocal
 	}
 	for i := range d.IPv4 {
@@ -247,12 +485,26 @@ func (t *Table) addAddress(d *Device, addr netip.Addr, state, via string, at tim
 			return nil
 		}
 		a.State, a.Via, a.Ref = state, via, ref
-		d.Timeline = append(d.Timeline, TimelineEntry{Time: at, Text: timelineText(via, addr), Ref: ref})
+		addTimeline(d, at, timelineText(via, addr), ref)
 		return []Event{{Time: at, Change: ChangeUpdate, Device: snapshot(d), Via: via, Method: method, Address: addr, Ref: ref}}
 	}
+	if state == StateSeen && weakCount(d) >= maxWeakAddresses {
+		d.WeakOverflow++
+		return nil
+	}
 	d.IPv4 = append(d.IPv4, Address{Addr: addr, State: state, Via: via, FirstSeen: at, LastSeen: at, Ref: ref})
-	d.Timeline = append(d.Timeline, TimelineEntry{Time: at, Text: timelineText(via, addr), Ref: ref})
+	addTimeline(d, at, timelineText(via, addr), ref)
 	return []Event{{Time: at, Change: ChangeUpdate, Device: snapshot(d), Via: via, Method: method, Address: addr, Ref: ref}}
+}
+
+func weakCount(d *Device) int {
+	n := 0
+	for _, a := range d.IPv4 {
+		if a.State == StateSeen {
+			n++
+		}
+	}
+	return n
 }
 
 func timelineText(via string, addr netip.Addr) string {
@@ -261,9 +513,27 @@ func timelineText(via string, addr netip.Addr) string {
 		return "ARP probe " + addr.String()
 	case ViaARPAnnouncement:
 		return "ARP announcement " + addr.String()
+	case ViaDHCPACK:
+		return "DHCP ack " + addr.String()
+	case ViaIPv4:
+		return "IPv4 seen " + addr.String()
 	default:
 		return "IPv4 observed " + addr.String()
 	}
+}
+
+func addTimeline(d *Device, at time.Time, text string, ref Ref) {
+	d.Timeline = append(d.Timeline, TimelineEntry{Time: at, Text: text, Ref: ref})
+}
+
+func addName(d *Device, value, via string, ref Ref, at time.Time) {
+	for _, n := range d.Names {
+		if n.Value == value && n.Via == via {
+			return
+		}
+	}
+	d.Names = append(d.Names, Name{Value: value, Via: via, Ref: ref})
+	addTimeline(d, at, via+" name "+value, ref)
 }
 
 func addProtocol(d *Device, p string) {
@@ -274,6 +544,17 @@ func addProtocol(d *Device, p string) {
 	}
 	d.Protocols = append(d.Protocols, p)
 	sort.Strings(d.Protocols)
+}
+
+func addrText(a netip.Addr) string {
+	if !a.IsValid() || a.IsUnspecified() {
+		return "unknown"
+	}
+	return a.String()
+}
+
+func usableIPv4(a netip.Addr) bool {
+	return a.IsValid() && a.Is4() && !a.IsUnspecified() && !a.IsMulticast() && !a.IsLoopback() && a != netip.AddrFrom4([4]byte{255, 255, 255, 255})
 }
 
 func validKey(mac []byte) bool {
@@ -288,5 +569,14 @@ func snapshot(d *Device) Device {
 	c.Names = append([]Name(nil), d.Names...)
 	c.Protocols = append([]string(nil), d.Protocols...)
 	c.Timeline = append([]TimelineEntry(nil), d.Timeline...)
+	return c
+}
+
+func neighborSnapshot(n *Neighbor) Neighbor {
+	c := *n
+	c.Caps = append([]string(nil), n.Caps...)
+	c.EnabledCaps = append([]string(nil), n.EnabledCaps...)
+	c.MgmtAddrs = append([]string(nil), n.MgmtAddrs...)
+	c.VLANNames = append([]string(nil), n.VLANNames...)
 	return c
 }

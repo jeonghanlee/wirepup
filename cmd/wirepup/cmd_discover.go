@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/jeonghanlee/wirepup/internal/device"
 	"github.com/jeonghanlee/wirepup/internal/interfaces"
 	"github.com/jeonghanlee/wirepup/internal/observation"
+	"github.com/jeonghanlee/wirepup/internal/oui"
 	"github.com/jeonghanlee/wirepup/internal/output"
 	jsonout "github.com/jeonghanlee/wirepup/internal/output/json"
 	"github.com/jeonghanlee/wirepup/internal/output/text"
@@ -27,6 +29,11 @@ func runDiscover(ctx context.Context, e *env, args []string) int {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitCodeFor(err)
 	}
+	vendors, ouiPath, err := loadOUI(e, &g)
+	if err != nil {
+		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
+		return exitUsage
+	}
 	src, err := openLive(&g, prog)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
@@ -34,7 +41,7 @@ func runDiscover(ctx context.Context, e *env, args []string) int {
 	}
 	defer src.Close()
 	local, _ := interfaces.LocalMACs()
-	table := device.New(device.Options{LocalMACs: local})
+	table := device.New(device.Options{LocalMACs: local, Vendor: vendors.Lookup})
 	if !g.quiet {
 		fmt.Fprintf(e.stderr, "Listening on %s (passive: nothing is transmitted)...\n", src.Name())
 	}
@@ -52,7 +59,7 @@ func runDiscover(ctx context.Context, e *env, args []string) int {
 	}
 	ds, cs, runErr := runSource(ctx, src, show)
 	reportStats(e, &g, ds, cs)
-	doc := output.DevicesFrom(src.Name(), time.Now(), table.Devices())
+	doc := output.DevicesFrom(src.Name(), time.Now(), ouiPath, table.Devices(), table.Neighbors())
 	if g.json {
 		jsonout.Document(e.stdout, doc)
 	} else if len(doc.Devices) > 0 {
@@ -64,4 +71,20 @@ func runDiscover(ctx context.Context, e *env, args []string) int {
 		return exitCodeFor(runErr)
 	}
 	return exitOK
+}
+
+// loadOUI opens the vendor registry. A missing default file is a notice,
+// not an error; a missing explicit --oui-file is an error.
+func loadOUI(e *env, g *globalFlags) (*oui.Table, string, error) {
+	t, err := oui.Load(g.ouiFile, oui.DefaultPaths)
+	if err != nil {
+		if g.ouiFile != "" || !errors.Is(err, oui.ErrNotFound) {
+			return nil, "", err
+		}
+		if !g.quiet {
+			fmt.Fprintf(e.stderr, "wirepup: vendor hints disabled: %v\n", err)
+		}
+		return nil, "", nil
+	}
+	return t, t.Path(), nil
 }

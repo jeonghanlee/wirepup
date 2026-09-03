@@ -48,10 +48,21 @@ func DeviceEvent(w io.Writer, e output.DeviceEvent) {
 	switch e.Change {
 	case "new_device":
 		b.WriteString("NEW DEVICE\n")
+	case "new_neighbor":
+		neighborBlock(&b, e)
+		io.WriteString(w, b.String())
+		return
 	default:
 		b.WriteString("UPDATE\n")
 	}
 	line(&b, "MAC", strings.Join(e.Device.MACs, ", "))
+	if len(e.Device.Names) > 0 {
+		var names []string
+		for _, n := range e.Device.Names {
+			names = append(names, n.Value+" ("+n.Via+")")
+		}
+		line(&b, "Name", strings.Join(names, ", "))
+	}
 	addr := e.Address
 	if addr == "" {
 		addr = bestIPv4(e.Device)
@@ -85,7 +96,54 @@ func Devices(w io.Writer, doc output.Devices) error {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", mac, dash(strings.Join(v4, " ")), dash(d.Vendor), dash(strings.Join(d.Protocols, ",")),
 			d.FirstSeen.Local().Format(timeLayout), d.LastSeen.Local().Format(timeLayout))
 	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	if len(doc.Neighbors) == 0 {
+		return nil
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "NEIGHBORS (LLDP)")
+	tw = tabwriter.NewWriter(w, tabMinWidth, 0, tabPadding, ' ', 0)
+	fmt.Fprintln(tw, "SYSTEM\tPORT\tPORT VLAN\tMGMT\tCHASSIS")
+	for _, n := range doc.Neighbors {
+		vlan := unknownValue
+		if n.PortVLANID != 0 {
+			vlan = fmt.Sprintf("%d", n.PortVLANID)
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", dash(n.SystemName), n.PortID, vlan, dash(strings.Join(n.MgmtAddrs, ",")), n.ChassisID)
+	}
 	return tw.Flush()
+}
+
+func neighborBlock(b *strings.Builder, e output.DeviceEvent) {
+	n := e.Neighbor
+	if n == nil {
+		return
+	}
+	b.WriteString("NETWORK NEIGHBOR (LLDP)\n")
+	line(b, "System", dash(n.SystemName))
+	line(b, "Chassis", n.ChassisID)
+	line(b, "Port", n.PortID)
+	if n.PortDesc != "" {
+		line(b, "Port desc", n.PortDesc)
+	}
+	if len(n.MgmtAddrs) > 0 {
+		line(b, "Mgmt addr", strings.Join(n.MgmtAddrs, ", "))
+	}
+	vlan := unknownValue
+	if n.PortVLANID != 0 {
+		vlan = fmt.Sprintf("%d", n.PortVLANID)
+	}
+	line(b, "Port VLAN", vlan)
+	if len(n.VLANNames) > 0 {
+		line(b, "VLANs", strings.Join(n.VLANNames, ", "))
+	}
+	if len(n.Caps) > 0 {
+		line(b, "Caps", strings.Join(n.Caps, ",")+" (enabled: "+dash(strings.Join(n.EnabledCaps, ","))+")")
+	}
+	line(b, "Evidence", fmt.Sprintf("%s #%d", e.Ref.Source, e.Ref.PacketID))
+	b.WriteString("\n")
 }
 
 func bestIPv4(d output.Device) string {
