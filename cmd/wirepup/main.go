@@ -45,6 +45,7 @@ type globalFlags struct {
 	ouiFile   string
 	protocols string
 	pcap      string
+	local     string
 }
 
 func (g *globalFlags) register(fs *flag.FlagSet) {
@@ -58,6 +59,7 @@ func (g *globalFlags) register(fs *flag.FlagSet) {
 	fs.StringVar(&g.ouiFile, "oui-file", "", "IEEE oui.txt to use for vendor hints")
 	fs.StringVar(&g.protocols, "protocol", "", "comma-separated protocol filter (for example arp,lldp)")
 	fs.StringVar(&g.pcap, "pcap", "", "read from a capture file instead of an interface")
+	fs.StringVar(&g.local, "local", "", "local IPv4/IPv6 prefixes of the capture host (comma-separated), for --pcap")
 }
 
 // command is one subcommand.
@@ -79,6 +81,7 @@ var commands = []command{
 	{"discover", "passive device discovery", runDiscover},
 	{"capture", "write frames to a PCAP/PCAPNG file (passive)", runCapture},
 	{"read", "replay a capture file offline", runRead},
+	{"diagnose", "rule-based diagnosis (passive)", runDiagnose},
 	{"version", "print the version", runVersion},
 }
 
@@ -157,14 +160,17 @@ func exitCodeFor(err error) int {
 		return exitCapture
 	case errors.Is(err, errUsage):
 		return exitUsage
+	case errors.Is(err, errNotObserved):
+		return exitNotObserved
 	default:
 		return exitError
 	}
 }
 
 var (
-	errUsage   = errors.New("invalid arguments")
-	errCapture = errors.New("capture failed")
+	errUsage       = errors.New("invalid arguments")
+	errCapture     = errors.New("capture failed")
+	errNotObserved = errors.New("requested target not observed")
 )
 
 func runVersion(ctx context.Context, e *env, args []string) int {

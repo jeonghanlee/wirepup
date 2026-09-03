@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jeonghanlee/wirepup/internal/device"
+	"github.com/jeonghanlee/wirepup/internal/diagnose"
 	"github.com/jeonghanlee/wirepup/internal/interfaces"
 	"github.com/jeonghanlee/wirepup/internal/observation"
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
@@ -28,7 +29,62 @@ const (
 	SchemaEvent       = "wirepup/event/1"
 	SchemaDeviceEvent = "wirepup/device-event/1"
 	SchemaDevices     = "wirepup/devices/1"
+	SchemaDiagnosis   = "wirepup/diagnosis/1"
 )
+
+// Diagnosis is the document for the diagnose command. The four arrays
+// are the NFR-008 categories; each finding cites its packets.
+type Diagnosis struct {
+	Schema      string    `json:"schema"`
+	Source      string    `json:"source"`
+	Interface   string    `json:"interface"`
+	Target      string    `json:"target,omitempty"`
+	TargetSeen  bool      `json:"target_observed"`
+	GeneratedAt time.Time `json:"generated_at"`
+	Observed    []Finding `json:"observed"`
+	Inferred    []Finding `json:"inferred"`
+	Recommended []Finding `json:"recommended"`
+	Executed    []Finding `json:"executed"`
+}
+
+// Finding is one diagnosis line.
+type Finding struct {
+	Code     string            `json:"code"`
+	Text     string            `json:"text"`
+	Evidence []Ref             `json:"evidence"`
+	Data     map[string]string `json:"data,omitempty"`
+}
+
+// DiagnosisFrom converts a report.
+func DiagnosisFrom(source string, at time.Time, r diagnose.Report) Diagnosis {
+	d := Diagnosis{
+		Schema:      SchemaDiagnosis,
+		Source:      source,
+		Interface:   r.Interface,
+		TargetSeen:  r.TargetSeen,
+		GeneratedAt: at,
+		Observed:    findings(r.Observed),
+		Inferred:    findings(r.Inferred),
+		Recommended: findings(r.Recommended),
+		Executed:    findings(r.Executed),
+	}
+	if r.Target.IsValid() {
+		d.Target = r.Target.String()
+	}
+	return d
+}
+
+func findings(fs []diagnose.Finding) []Finding {
+	out := make([]Finding, 0, len(fs))
+	for _, f := range fs {
+		o := Finding{Code: f.Code, Text: f.Text, Evidence: make([]Ref, 0, len(f.Evidence)), Data: f.Data}
+		for _, r := range f.Evidence {
+			o.Evidence = append(o.Evidence, refFrom(r))
+		}
+		out = append(out, o)
+	}
+	return out
+}
 
 // Ref is a packet reference: which source and which frame.
 type Ref struct {

@@ -33,6 +33,8 @@ var goldenCases = []struct {
 	{"ipv6-dad.devices", []string{"read", "--devices", "--json", "--quiet", "--oui-file", ouiFixture, filepath.Join(fixtureDir, "ipv6-dad.pcap")}},
 	{"vlan-tagged-arp.events", []string{"read", "--json", "--quiet", "--verbose", filepath.Join(fixtureDir, "vlan-tagged-arp.pcap")}},
 	{"same-l2-different-subnet.devices", []string{"read", "--devices", "--json", "--quiet", "--oui-file", ouiFixture, filepath.Join(fixtureDir, "same-l2-different-subnet.pcap")}},
+	{"same-l2-different-subnet.diagnosis", []string{"diagnose", "--pcap", filepath.Join(fixtureDir, "same-l2-different-subnet.pcap"), "--local", "10.20.30.51/24", "--json", "--quiet", "--oui-file", ouiFixture}},
+	{"same-l2-different-subnet.target", []string{"diagnose", "192.168.1.100", "--pcap", filepath.Join(fixtureDir, "same-l2-different-subnet.pcap"), "--local", "10.20.30.51/24", "--json", "--quiet", "--oui-file", ouiFixture}},
 }
 
 func TestGoldenJSON(t *testing.T) {
@@ -88,5 +90,30 @@ func TestReadTextAndErrors(t *testing.T) {
 	}
 	if code, _, errs := runCLI(t, "capture", "-i", "lo"); code != exitUsage || !strings.Contains(errs, "output file") {
 		t.Fatalf("capture without output: %d %s", code, errs)
+	}
+}
+
+func TestDiagnoseTextAndExitCodes(t *testing.T) {
+	pcap := filepath.Join(fixtureDir, "same-l2-different-subnet.pcap")
+	code, out, _ := runCLI(t, "diagnose", "--pcap", pcap, "--local", "10.20.30.51/24", "--quiet", "--oui-file", ouiFixture)
+	if code != exitOK {
+		t.Fatalf("exit %d", code)
+	}
+	for _, want := range []string{"Observed", "local capture IPv4 = 10.20.30.51/24", "Inferred", "outside every configured local IPv4 subnet", "Recommended", "192.168.1.254", "Executed", "(none)", "explicit connect"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in:\n%s", want, out)
+		}
+	}
+	if code, out, _ := runCLI(t, "diagnose", "10.99.99.99", "--pcap", pcap, "--local", "10.20.30.51/24", "--quiet"); code != exitNotObserved || !strings.Contains(out, "not observed") {
+		t.Fatalf("unseen target: exit %d\n%s", code, out)
+	}
+	if code, _, errs := runCLI(t, "diagnose", "not-an-ip", "--pcap", pcap, "--quiet"); code != exitUsage || !strings.Contains(errs, "IPv4 address") {
+		t.Fatalf("bad target: %d %s", code, errs)
+	}
+	if code, _, errs := runCLI(t, "diagnose", "--pcap", pcap, "--local", "junk", "--quiet"); code != exitUsage || !strings.Contains(errs, "--local") {
+		t.Fatalf("bad local: %d %s", code, errs)
+	}
+	if code, _, errs := runCLI(t, "diagnose", "--quiet"); code != exitUsage || !strings.Contains(errs, "interface") {
+		t.Fatalf("no source: %d %s", code, errs)
 	}
 }

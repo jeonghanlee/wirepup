@@ -179,6 +179,46 @@ func neighborBlock(b *strings.Builder, e output.DeviceEvent) {
 	b.WriteString("\n")
 }
 
+// Diagnosis prints the four sections in order with evidence references.
+func Diagnosis(w io.Writer, d output.Diagnosis) {
+	if d.Target != "" {
+		seen := "not observed"
+		if d.TargetSeen {
+			seen = "observed"
+		}
+		fmt.Fprintf(w, "Target %s: %s on %s\n\n", d.Target, seen, d.Interface)
+	}
+	section(w, "Observed", d.Observed)
+	section(w, "Inferred", d.Inferred)
+	section(w, "Recommended", d.Recommended)
+	section(w, "Executed", d.Executed)
+	fmt.Fprintln(w, "No host network configuration is changed without an explicit connect command.")
+}
+
+func section(w io.Writer, title string, fs []output.Finding) {
+	fmt.Fprintln(w, title)
+	if len(fs) == 0 {
+		fmt.Fprintln(w, "  (none)")
+		fmt.Fprintln(w)
+		return
+	}
+	for _, f := range fs {
+		fmt.Fprintf(w, "  - %s%s\n", f.Text, refs(f.Evidence))
+	}
+	fmt.Fprintln(w)
+}
+
+func refs(rs []output.Ref) string {
+	if len(rs) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, r := range rs {
+		parts = append(parts, fmt.Sprintf("#%d", r.PacketID))
+	}
+	return "  [" + rs[0].Source + " " + strings.Join(parts, ",") + "]"
+}
+
 func bestIPv4(d output.Device) string {
 	if d.PrimaryIPv4 != "" {
 		return d.PrimaryIPv4

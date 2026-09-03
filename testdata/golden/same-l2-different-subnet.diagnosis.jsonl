@@ -1,0 +1,141 @@
+{
+  "schema": "wirepup/diagnosis/1",
+  "source": "../../testdata/pcap/same-l2-different-subnet.pcap",
+  "interface": "capture",
+  "target_observed": false,
+  "generated_at": "2026-01-01T00:00:02Z",
+  "observed": [
+    {
+      "code": "local-context",
+      "text": "local capture IPv4 = 10.20.30.51/24",
+      "evidence": [],
+      "data": {
+        "interface": "capture",
+        "ipv4": "10.20.30.51/24"
+      }
+    },
+    {
+      "code": "l2-evidence",
+      "text": "ARP Request frame from MAC 00:11:22:33:44:55 on capture",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/same-l2-different-subnet.pcap",
+          "packet_id": 1
+        }
+      ],
+      "data": {
+        "mac": "00:11:22:33:44:55",
+        "via": "ARP Request"
+      }
+    },
+    {
+      "code": "address-claim",
+      "text": "ARP Request sender IPv4 = 10.20.30.51",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/same-l2-different-subnet.pcap",
+          "packet_id": 1
+        }
+      ],
+      "data": {
+        "address": "10.20.30.51",
+        "mac": "00:11:22:33:44:55",
+        "state": "observed"
+      }
+    },
+    {
+      "code": "l2-evidence",
+      "text": "ARP Request frame from MAC 00:80:f4:12:34:56 on capture",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/same-l2-different-subnet.pcap",
+          "packet_id": 2
+        }
+      ],
+      "data": {
+        "mac": "00:80:f4:12:34:56",
+        "via": "ARP Request"
+      }
+    },
+    {
+      "code": "address-claim",
+      "text": "ARP Request sender IPv4 = 192.168.1.100",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/same-l2-different-subnet.pcap",
+          "packet_id": 2
+        }
+      ],
+      "data": {
+        "address": "192.168.1.100",
+        "mac": "00:80:f4:12:34:56",
+        "state": "observed"
+      }
+    }
+  ],
+  "inferred": [
+    {
+      "code": "target-on-local-subnet",
+      "text": "MAC 00:11:22:33:44:55 appears to use 10.20.30.51, inside local 10.20.30.51/24",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/same-l2-different-subnet.pcap",
+          "packet_id": 1
+        }
+      ],
+      "data": {
+        "address": "10.20.30.51",
+        "local_prefix": "10.20.30.51/24",
+        "mac": "00:11:22:33:44:55"
+      }
+    },
+    {
+      "code": "ipv4-outside-local-subnet",
+      "text": "MAC 00:80:f4:12:34:56 appears to use 192.168.1.100",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/same-l2-different-subnet.pcap",
+          "packet_id": 2
+        }
+      ],
+      "data": {
+        "address": "192.168.1.100",
+        "mac": "00:80:f4:12:34:56"
+      }
+    },
+    {
+      "code": "same-l2-different-subnet",
+      "text": "192.168.1.100 is outside every configured local IPv4 subnet (10.20.30.51/24) although its MAC is on the same Layer-2 segment",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/same-l2-different-subnet.pcap",
+          "packet_id": 2
+        }
+      ],
+      "data": {
+        "address": "192.168.1.100",
+        "local_ipv4": "10.20.30.51/24",
+        "mac": "00:80:f4:12:34:56"
+      }
+    }
+  ],
+  "recommended": [
+    {
+      "code": "temporary-secondary-address",
+      "text": "consider a temporary secondary address 192.168.1.254 on capture to reach 192.168.1.100 (prefix /24 assumed; verify before use); no host configuration is changed without an explicit connect command",
+      "evidence": [
+        {
+          "source": "../../testdata/pcap/same-l2-different-subnet.pcap",
+          "packet_id": 2
+        }
+      ],
+      "data": {
+        "candidate": "192.168.1.254",
+        "interface": "capture",
+        "prefix": "192.168.1.0/24",
+        "target": "192.168.1.100"
+      }
+    }
+  ],
+  "executed": []
+}
