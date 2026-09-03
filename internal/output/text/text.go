@@ -52,10 +52,24 @@ func DeviceEvent(w io.Writer, e output.DeviceEvent) {
 		neighborBlock(&b, e)
 		io.WriteString(w, b.String())
 		return
+	case "address_conflict":
+		if e.Conflict != nil {
+			b.WriteString("ADDRESS CONFLICT\n")
+			line(&b, "Address", e.Conflict.Address)
+			line(&b, "Claimed by", strings.Join(e.Conflict.MACs, ", "))
+			line(&b, "Evidence", fmt.Sprintf("%s #%d", e.Ref.Source, e.Ref.PacketID))
+			b.WriteString("\n")
+		}
+		io.WriteString(w, b.String())
+		return
 	default:
 		b.WriteString("UPDATE\n")
 	}
-	line(&b, "MAC", strings.Join(e.Device.MACs, ", "))
+	mac := strings.Join(e.Device.MACs, ", ")
+	if e.Device.MACLocallyAdministered {
+		mac += " (locally administered)"
+	}
+	line(&b, "MAC", mac)
 	if len(e.Device.Names) > 0 {
 		var names []string
 		for _, n := range e.Device.Names {
@@ -111,6 +125,13 @@ func Devices(w io.Writer, doc output.Devices) error {
 	if err := tw.Flush(); err != nil {
 		return err
 	}
+	if len(doc.Conflicts) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "ADDRESS CONFLICTS")
+		for _, c := range doc.Conflicts {
+			fmt.Fprintf(w, "%s claimed by %s\n", c.Address, strings.Join(c.MACs, ", "))
+		}
+	}
 	if len(doc.Neighbors) == 0 {
 		return nil
 	}
@@ -159,10 +180,11 @@ func neighborBlock(b *strings.Builder, e output.DeviceEvent) {
 }
 
 func bestIPv4(d output.Device) string {
-	for _, a := range d.IPv4 {
-		if a.State != "probing" {
-			return a.Address
-		}
+	if d.PrimaryIPv4 != "" {
+		return d.PrimaryIPv4
+	}
+	if d.PrimaryIPv6 != "" {
+		return d.PrimaryIPv6
 	}
 	return unknownValue
 }

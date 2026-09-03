@@ -8,8 +8,10 @@ package device
 
 import (
 	"fmt"
+	"net"
 	"net/netip"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -57,7 +59,11 @@ const (
 	ChangeNewDevice   = "new_device"
 	ChangeUpdate      = "update"
 	ChangeNewNeighbor = "new_neighbor"
+	ChangeConflict    = "address_conflict"
 )
+
+// ViaConflict labels an address claimed by more than one MAC.
+const ViaConflict = "duplicate address claim"
 
 // Methods label how an address was obtained.
 const (
@@ -119,21 +125,36 @@ type TimelineEntry struct {
 
 // Device is an inferred endpoint.
 type Device struct {
-	ID           string
-	MACs         []string
-	IPv4         []Address
-	IPv6         []Address
-	Names        []Name
-	Vendor       string
-	Protocols    []string
-	FirstSeen    time.Time
-	LastSeen     time.Time
-	Local        bool
-	Router       bool // advertised itself as an IPv6 router
-	VLANs        []uint16
-	Confidence   observation.Confidence
-	Timeline     []TimelineEntry
-	WeakOverflow int // "seen" addresses not recorded because the cap was reached
+	ID        string
+	MACs      []string
+	IPv4      []Address
+	IPv6      []Address
+	Names     []Name
+	Vendor    string
+	Protocols []string
+	FirstSeen time.Time
+	LastSeen  time.Time
+	Local     bool
+	Router    bool // advertised itself as an IPv6 router
+	VLANs     []uint16
+	// LocallyAdministered marks a MAC with the U/L bit set (randomized
+	// or virtual), whose prefix carries no vendor meaning and which may
+	// not be stable over time.
+	LocallyAdministered bool
+	Confidence          observation.Confidence
+	Timeline            []TimelineEntry
+	WeakOverflow        int // "seen" addresses not recorded because the cap was reached
+}
+
+// Conflict is one address claimed by more than one MAC through strong
+// evidence (ARP, NDP, DHCP), which is duplicate-address evidence rather
+// than a merge reason (R-010).
+type Conflict struct {
+	Addr      netip.Addr
+	MACs      []string
+	FirstSeen time.Time
+	LastSeen  time.Time
+	Refs      []Ref
 }
 
 // Neighbor is an LLDP-advertising network device, kept apart from
@@ -179,6 +200,7 @@ type Event struct {
 	Change   string
 	Device   Device
 	Neighbor *Neighbor
+	Conflict *Conflict
 	Via      string
 	Method   string
 	Address  netip.Addr
@@ -205,6 +227,8 @@ type Table struct {
 	norder    []*Neighbor
 	dhcp      map[string]*DHCPTransaction
 	dorder    []*DHCPTransaction
+	claims    map[netip.Addr]*Conflict
+	corder    []*Conflict
 }
 
 // New returns an empty table.
@@ -215,6 +239,7 @@ func New(opts Options) *Table {
 		byMAC:     map[string]*Device{},
 		neighbors: map[string]*Neighbor{},
 		dhcp:      map[string]*DHCPTransaction{},
+		claims:    map[netip.Addr]*Conflict{},
 	}
 	for _, m := range opts.LocalMACs {
 		t.local[m] = true
@@ -247,6 +272,19 @@ func (t *Table) Neighbors() []Neighbor {
 	out := make([]Neighbor, 0, len(t.norder))
 	for _, n := range t.norder {
 		out = append(out, neighborSnapshot(n))
+	}
+	return out
+}
+
+// Conflicts returns the addresses claimed by more than one MAC.
+func (t *Table) Conflicts() []Conflict {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var out []Conflict
+	for _, c := range t.corder {
+		if len(c.MACs) > 1 {
+			out = append(out, conflictSnapshot(c))
+		}
 	}
 	return out
 }
@@ -543,12 +581,13 @@ func (t *Table) touch(mac string, at time.Time, via string, ref Ref) (*Device, [
 		return d, nil
 	}
 	d := &Device{
-		ID:         mac,
-		MACs:       []string{mac},
-		FirstSeen:  at,
-		LastSeen:   at,
-		Local:      t.local[mac],
-		Confidence: observation.Confirmed,
+		ID:                  mac,
+		MACs:                []string{mac},
+		FirstSeen:           at,
+		LastSeen:            at,
+		Local:               t.local[mac],
+		LocallyAdministered: locallyAdministered(mac),
+		Confidence:          observation.WeakHint,
 	}
 	if t.opts.Vendor != nil {
 		d.Vendor = t.opts.Vendor(mac)
@@ -589,16 +628,72 @@ func (t *Table) addAddress(d *Device, addr netip.Addr, state, via, method string
 			return nil
 		}
 		a.State, a.Via, a.Ref = state, via, ref
+		raiseConfidence(d, state)
 		addTimeline(d, at, timelineText(via, addr), ref)
-		return []Event{{Time: at, Change: ChangeUpdate, Device: snapshot(d), Via: via, Method: method, Address: addr, Ref: ref}}
+		events := []Event{{Time: at, Change: ChangeUpdate, Device: snapshot(d), Via: via, Method: method, Address: addr, Ref: ref}}
+		return append(events, t.noteClaim(d, addr, state, at, ref)...)
 	}
 	if state == StateSeen && weakCount(*list) >= maxWeakAddresses {
 		d.WeakOverflow++
 		return nil
 	}
 	*list = append(*list, Address{Addr: addr, State: state, Via: via, FirstSeen: at, LastSeen: at, Ref: ref})
+	raiseConfidence(d, state)
 	addTimeline(d, at, timelineText(via, addr), ref)
-	return []Event{{Time: at, Change: ChangeUpdate, Device: snapshot(d), Via: via, Method: method, Address: addr, Ref: ref}}
+	events := []Event{{Time: at, Change: ChangeUpdate, Device: snapshot(d), Via: via, Method: method, Address: addr, Ref: ref}}
+	return append(events, t.noteClaim(d, addr, state, at, ref)...)
+}
+
+// raiseConfidence upgrades the device confidence when strong evidence
+// (an address claim through ARP, NDP, or DHCP) arrives; weak sightings
+// leave it at the level a frame alone justifies.
+func raiseConfidence(d *Device, state string) {
+	switch {
+	case stateRank[state] >= stateRank[StateObserved]:
+		d.Confidence = observation.Confirmed
+	case d.Confidence == observation.WeakHint:
+		d.Confidence = observation.StrongHint
+	}
+}
+
+// noteClaim tracks which MACs claim an address with strong evidence and
+// emits a conflict event when a second MAC appears.
+func (t *Table) noteClaim(d *Device, addr netip.Addr, state string, at time.Time, ref Ref) []Event {
+	if stateRank[state] < stateRank[StateObserved] {
+		return nil
+	}
+	c, ok := t.claims[addr]
+	if !ok {
+		c = &Conflict{Addr: addr, FirstSeen: at}
+		t.claims[addr] = c
+		t.corder = append(t.corder, c)
+	}
+	c.LastSeen = at
+	for _, m := range c.MACs {
+		if m == d.ID {
+			return nil
+		}
+	}
+	c.MACs = append(c.MACs, d.ID)
+	c.Refs = append(c.Refs, ref)
+	if len(c.MACs) < 2 {
+		return nil
+	}
+	addTimeline(d, at, "address "+addr.String()+" also claimed by "+strings.Join(c.MACs[:len(c.MACs)-1], ", "), ref)
+	snap := conflictSnapshot(c)
+	return []Event{{Time: at, Change: ChangeConflict, Device: snapshot(d), Conflict: &snap, Via: ViaConflict, Address: addr, Ref: ref}}
+}
+
+func conflictSnapshot(c *Conflict) Conflict {
+	s := *c
+	s.MACs = append([]string(nil), c.MACs...)
+	s.Refs = append([]Ref(nil), c.Refs...)
+	return s
+}
+
+func locallyAdministered(mac string) bool {
+	hw, err := net.ParseMAC(mac)
+	return err == nil && len(hw) > 0 && hw[0]&0x02 != 0
 }
 
 func weakCount(list []Address) int {

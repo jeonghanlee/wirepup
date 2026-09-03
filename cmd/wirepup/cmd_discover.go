@@ -59,7 +59,7 @@ func runDiscover(ctx context.Context, e *env, args []string) int {
 	}
 	ds, cs, runErr := runSource(ctx, src, show)
 	reportStats(e, &g, ds, cs)
-	doc := output.DevicesFrom(src.Name(), time.Now(), ouiPath, table.Devices(), table.Neighbors())
+	doc := output.DevicesFrom(src.Name(), time.Now(), ouiPath, table.Devices(), table.Neighbors(), table.Conflicts())
 	if g.json {
 		jsonout.Document(e.stdout, doc)
 	} else if len(doc.Devices) > 0 {

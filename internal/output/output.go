@@ -79,7 +79,17 @@ type DeviceEvent struct {
 	VLAN     uint16    `json:"vlan,omitempty"`
 	Device   Device    `json:"device"`
 	Neighbor *Neighbor `json:"neighbor,omitempty"`
+	Conflict *Conflict `json:"conflict,omitempty"`
 	Ref      Ref       `json:"evidence"`
+}
+
+// Conflict is one address claimed by more than one MAC.
+type Conflict struct {
+	Address   string    `json:"address"`
+	MACs      []string  `json:"macs"`
+	FirstSeen time.Time `json:"first_seen"`
+	LastSeen  time.Time `json:"last_seen"`
+	Refs      []Ref     `json:"evidence"`
 }
 
 // Devices is the document for the discover command.
@@ -90,6 +100,7 @@ type Devices struct {
 	OUIFile     string     `json:"oui_file,omitempty"`
 	Devices     []Device   `json:"devices"`
 	Neighbors   []Neighbor `json:"neighbors"`
+	Conflicts   []Conflict `json:"conflicts"`
 }
 
 // Neighbor is one LLDP-advertising network device.
@@ -115,22 +126,25 @@ type Neighbor struct {
 
 // Device is one inferred device.
 type Device struct {
-	ID           string          `json:"id"`
-	MACs         []string        `json:"macs"`
-	Vendor       string          `json:"vendor_hint,omitempty"`
-	IPv4         []Address       `json:"ipv4"`
-	IPv6         []Address       `json:"ipv6"`
-	Names        []Name          `json:"names"`
-	Protocols    []string        `json:"protocols"`
-	FirstSeen    time.Time       `json:"first_seen"`
-	LastSeen     time.Time       `json:"last_seen"`
-	Local        bool            `json:"local"`
-	Router       bool            `json:"ipv6_router"`
-	VLANs        []uint16        `json:"vlans"`
-	VLAN         string          `json:"vlan"`
-	Confidence   string          `json:"confidence"`
-	Timeline     []TimelineEntry `json:"timeline"`
-	WeakOverflow int             `json:"seen_addresses_dropped,omitempty"`
+	ID                     string          `json:"id"`
+	MACs                   []string        `json:"macs"`
+	MACLocallyAdministered bool            `json:"mac_locally_administered"`
+	PrimaryIPv4            string          `json:"primary_ipv4,omitempty"`
+	PrimaryIPv6            string          `json:"primary_ipv6,omitempty"`
+	Vendor                 string          `json:"vendor_hint,omitempty"`
+	IPv4                   []Address       `json:"ipv4"`
+	IPv6                   []Address       `json:"ipv6"`
+	Names                  []Name          `json:"names"`
+	Protocols              []string        `json:"protocols"`
+	FirstSeen              time.Time       `json:"first_seen"`
+	LastSeen               time.Time       `json:"last_seen"`
+	Local                  bool            `json:"local"`
+	Router                 bool            `json:"ipv6_router"`
+	VLANs                  []uint16        `json:"vlans"`
+	VLAN                   string          `json:"vlan"`
+	Confidence             string          `json:"confidence"`
+	Timeline               []TimelineEntry `json:"timeline"`
+	WeakOverflow           int             `json:"seen_addresses_dropped,omitempty"`
 }
 
 // Address is one address claim with its evidence.
@@ -401,28 +415,61 @@ func arpSummary(v arp.Observation) string {
 // DeviceFrom converts a device record.
 func DeviceFrom(d device.Device) Device {
 	out := Device{
-		ID:           d.ID,
-		MACs:         append([]string{}, d.MACs...),
-		Vendor:       d.Vendor,
-		IPv4:         addresses(d.IPv4),
-		IPv6:         addresses(d.IPv6),
-		Names:        make([]Name, 0, len(d.Names)),
-		Protocols:    append([]string{}, d.Protocols...),
-		FirstSeen:    d.FirstSeen,
-		LastSeen:     d.LastSeen,
-		Local:        d.Local,
-		Router:       d.Router,
-		VLANs:        append([]uint16{}, d.VLANs...),
-		VLAN:         vlanList(d.VLANs),
-		Confidence:   string(d.Confidence),
-		Timeline:     make([]TimelineEntry, 0, len(d.Timeline)),
-		WeakOverflow: d.WeakOverflow,
+		ID:                     d.ID,
+		MACs:                   append([]string{}, d.MACs...),
+		MACLocallyAdministered: d.LocallyAdministered,
+		PrimaryIPv4:            primaryAddress(d.IPv4),
+		PrimaryIPv6:            primaryAddress(d.IPv6),
+		Vendor:                 d.Vendor,
+		IPv4:                   addresses(d.IPv4),
+		IPv6:                   addresses(d.IPv6),
+		Names:                  make([]Name, 0, len(d.Names)),
+		Protocols:              append([]string{}, d.Protocols...),
+		FirstSeen:              d.FirstSeen,
+		LastSeen:               d.LastSeen,
+		Local:                  d.Local,
+		Router:                 d.Router,
+		VLANs:                  append([]uint16{}, d.VLANs...),
+		VLAN:                   vlanList(d.VLANs),
+		Confidence:             string(d.Confidence),
+		Timeline:               make([]TimelineEntry, 0, len(d.Timeline)),
+		WeakOverflow:           d.WeakOverflow,
 	}
 	for _, n := range d.Names {
 		out.Names = append(out.Names, Name{Value: n.Value, Via: n.Via, Ref: refFrom(n.Ref)})
 	}
 	for _, t := range d.Timeline {
 		out.Timeline = append(out.Timeline, TimelineEntry{Time: t.Time, Text: t.Text, Ref: refFrom(t.Ref)})
+	}
+	return out
+}
+
+// primaryAddress picks the strongest claim, most recent on ties, and
+// never a mere probe.
+func primaryAddress(as []device.Address) string {
+	rank := map[string]int{device.StateSeen: 1, device.StateObserved: 2, device.StateClaimed: 3, device.StateLeased: 3}
+	best := -1
+	var bestAddr device.Address
+	for _, a := range as {
+		r, ok := rank[a.State]
+		if !ok {
+			continue
+		}
+		if r > best || (r == best && a.LastSeen.After(bestAddr.LastSeen)) {
+			best, bestAddr = r, a
+		}
+	}
+	if best < 0 {
+		return ""
+	}
+	return bestAddr.Addr.String()
+}
+
+// ConflictFrom converts a duplicate-claim record.
+func ConflictFrom(c device.Conflict) Conflict {
+	out := Conflict{Address: c.Addr.String(), MACs: append([]string{}, c.MACs...), FirstSeen: c.FirstSeen, LastSeen: c.LastSeen, Refs: make([]Ref, 0, len(c.Refs))}
+	for _, r := range c.Refs {
+		out.Refs = append(out.Refs, refFrom(r))
 	}
 	return out
 }
@@ -458,6 +505,10 @@ func DeviceEventFrom(e device.Event) DeviceEvent {
 		n := NeighborFrom(*e.Neighbor)
 		out.Neighbor = &n
 	}
+	if e.Conflict != nil {
+		c := ConflictFrom(*e.Conflict)
+		out.Conflict = &c
+	}
 	return out
 }
 
@@ -485,13 +536,16 @@ func NeighborFrom(n device.Neighbor) Neighbor {
 }
 
 // DevicesFrom converts a table snapshot.
-func DevicesFrom(source string, at time.Time, ouiFile string, ds []device.Device, ns []device.Neighbor) Devices {
-	out := Devices{Schema: SchemaDevices, Source: source, GeneratedAt: at, OUIFile: ouiFile, Devices: make([]Device, 0, len(ds)), Neighbors: make([]Neighbor, 0, len(ns))}
+func DevicesFrom(source string, at time.Time, ouiFile string, ds []device.Device, ns []device.Neighbor, cs []device.Conflict) Devices {
+	out := Devices{Schema: SchemaDevices, Source: source, GeneratedAt: at, OUIFile: ouiFile, Devices: make([]Device, 0, len(ds)), Neighbors: make([]Neighbor, 0, len(ns)), Conflicts: make([]Conflict, 0, len(cs))}
 	for _, d := range ds {
 		out.Devices = append(out.Devices, DeviceFrom(d))
 	}
 	for _, n := range ns {
 		out.Neighbors = append(out.Neighbors, NeighborFrom(n))
+	}
+	for _, c := range cs {
+		out.Conflicts = append(out.Conflicts, ConflictFrom(c))
 	}
 	return out
 }
