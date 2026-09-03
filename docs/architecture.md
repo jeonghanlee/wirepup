@@ -378,7 +378,7 @@ internal/protocol/icmpv6/    NDP and DAD
 internal/protocol/udp/
 internal/protocol/tcp/
 internal/protocol/dhcpv4/
-internal/protocol/dns/       DNS and mDNS
+internal/protocol/dns/       DNS and mDNS (after V1; no milestone of the V1 roadmap needs it)
 internal/epics/ca/           Channel Access parser and observations
 internal/epics/pva/          PVAccess parser and observations
 

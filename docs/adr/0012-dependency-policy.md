@@ -14,15 +14,16 @@ V1 modules:
 
 | Module | Purpose | License |
 | --- | --- | --- |
-| `golang.org/x/sys` | `AF_PACKET` socket, `SO_ATTACH_FILTER`, `PACKET_AUXDATA`, rtnetlink reads | BSD-3 |
-| `golang.org/x/term` | raw terminal mode and size for the TUI | BSD-3 |
+| `golang.org/x/sys` | `AF_PACKET` socket, `SO_ATTACH_FILTER`, `PACKET_AUXDATA`, `SO_BROADCAST` | BSD-3 |
+| `golang.org/x/term` | raw terminal mode and size for the TUI, terminal detection for confirmations | BSD-3 |
 | `github.com/gopacket/gopacket` (`pcapgo` only) | PCAP and PCAPNG read and write | BSD-3 |
+| `golang.org/x/net` (`bpf` only, pulled in by `gopacket`) | not imported by WirePup; linked because `gopacket/layers` needs it | BSD-3 |
 
 Specific choices:
 
 - CLI: `flag` from the standard library with a small subcommand dispatcher in `cmd/wirepup`. No CLI framework.
 - TUI (M10): the standard library plus `x/term`, rendering with ANSI escape sequences and a full redraw per refresh. No TUI framework. The TUI is a renderer over the same output structs as text and JSON (ADR-0009).
-- Netlink: reads through `net.Interfaces`, `net.Interface.Addrs`, and `unix.NetlinkRIB`; writes through iproute2 (ADR-0010). No netlink library.
+- Netlink: reads through `net.Interfaces`, `net.Interface.Addrs`, and the standard library `syscall.NetlinkRIB` route dump; writes through iproute2 (ADR-0010). No netlink library.
 - Logging: `log/slog`.
 - Builds use `CGO_ENABLED=0`; `go.sum` is committed; vendoring is not used.
 
