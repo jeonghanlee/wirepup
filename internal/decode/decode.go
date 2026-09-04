@@ -88,7 +88,13 @@ func (d *Decoder) LearnedPorts() (ca, pva []uint16) {
 func (d *Decoder) isCATCP(port uint16) bool  { return port == d.ports.CAServer || d.caTCP[port] }
 func (d *Decoder) isPVATCP(port uint16) bool { return port == d.ports.PVATCP || d.pvaTCP[port] }
 
-// SetPorts overrides the EPICS port hints.
+// SetPorts overrides the EPICS port hints. It is the seam for a site
+// that runs EPICS on offset ports (a non-default EPICS_CA_SERVER_PORT and
+// its PVA counterparts): the decoder would then key its UDP and default
+// TCP hints off the offset values. It has no caller yet; using it needs a
+// CLI flag to carry the offset and a matching kernel-filter rule in
+// cmd/wirepup/filters.go, since a live capture admits the UDP hint ports
+// at the kernel. The learned TCP port maps (caTCP/pvaTCP) are unaffected.
 func (d *Decoder) SetPorts(p Ports) { d.ports = p }
 
 // Stats returns the running counters.
