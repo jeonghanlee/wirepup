@@ -7,7 +7,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: M1-M10 are committed in a08a9ba (push pending) with every T row recorded; M11-M16 need implementation authorization; M17 needs the owner to pick its shape.
+Next session entry point: `docs/milestone-182961f.md`: M1-M16 are committed and verified (push pending); M17 needs the owner to pick its shape.
 
 ## Milestone
 
@@ -25,12 +25,12 @@ Next session entry point: `docs/milestone-182961f.md`: M1-M10 are committed in a
 | fixtures | M8 | Fixture generator selects the PCAPNG copy by name | Milestone | Complete | No | D1 | no positional index; regenerated fixtures byte-identical; [detail](#m8---fixture-generator-selects-the-pcapng-copy-by-name) |
 | cleanup | M9 | Unused declarations removed | Milestone | Complete | No | D1 | `Section*` and `Interface.Running` gone; build and tests pass; [detail](#m9---unused-declarations-removed) |
 | active | M10 | PVA search flag derived from local prefixes | Milestone | Complete | No | D1 | `active.Destination` carries `Broadcast`; `PVASearch` sets the flag from it; [detail](#m10---pva-search-flag-derived-from-local-prefixes) |
-| cleanup | M11 | `decode.SetPorts` recorded as the seam for offset EPICS ports | Milestone | Not started | Yes | D4 | doc comment names the seam and its missing halves; [detail](#m11---decodesetports-recorded-as-the-seam-for-offset-epics-ports) |
-| capture | M12 | One default snap length | Milestone | Not started | Yes | D3 | `capture.DefaultSnapLen` used by pcapfile, afpacket, and the generator; fixtures byte-identical; [detail](#m12---one-default-snap-length) |
-| vocabulary | M13 | Wire constants of bpf and active come from the parsers | Milestone | Not started | Yes | D3 | no EtherType, opcode, hardware, or protocol literal in `bpf.go` or `active.go` that a parser exports by name; [detail](#m13---wire-constants-of-bpf-and-active-come-from-the-parsers) |
-| vocabulary | M14 | Shared helpers named once where both users already import | Milestone | Not started | Yes | D3 | `output.Dash`, `device.AddrText`, `active.DirectedBroadcast` replace six copies; output unchanged; [detail](#m14---shared-helpers-named-once-where-both-users-already-import) |
-| vocabulary | M15 | Oper-state unknown sentinel named once | Milestone | Not started | Yes | D4 | `interfaces.OperStateUnknown` mirrored as `output.OperStateUnknown`; `text` and `tui` compare against it; [detail](#m15---oper-state-unknown-sentinel-named-once) |
-| rules | M16 | diagnose --epics reports the absence of EPICS traffic | Milestone | Not started | Yes | D2 | one Inferred finding under `--epics` when no CA/PVA record exists; golden added; [detail](#m16---diagnose---epics-reports-the-absence-of-epics-traffic) |
+| cleanup | M11 | `decode.SetPorts` recorded as the seam for offset EPICS ports | Milestone | Complete | No | D4 | doc comment names the seam and its missing halves; [detail](#m11---decodesetports-recorded-as-the-seam-for-offset-epics-ports) |
+| capture | M12 | One default snap length | Milestone | Complete | No | D3 | `capture.DefaultSnapLen` used by pcapfile, afpacket, and the generator; fixtures byte-identical; [detail](#m12---one-default-snap-length) |
+| vocabulary | M13 | Wire constants of bpf and active come from the parsers | Milestone | Complete | No | D3 | no EtherType, opcode, hardware, or protocol literal in `bpf.go` or `active.go` that a parser exports by name; [detail](#m13---wire-constants-of-bpf-and-active-come-from-the-parsers) |
+| vocabulary | M14 | Shared helpers named once where both users already import | Milestone | Complete | No | D3 | `output.Dash`, `device.AddrText`, `active.DirectedBroadcast` replace six copies; output unchanged; [detail](#m14---shared-helpers-named-once-where-both-users-already-import) |
+| vocabulary | M15 | Oper-state unknown sentinel named once | Milestone | Complete | No | D4 | `interfaces.OperStateUnknown` mirrored as `output.OperStateUnknown`; `text` and `tui` compare against it; [detail](#m15---oper-state-unknown-sentinel-named-once) |
+| rules | M16 | diagnose --epics reports the absence of EPICS traffic | Milestone | Complete | No | D2 | one Inferred finding under `--epics` when no CA/PVA record exists; golden added; [detail](#m16---diagnose---epics-reports-the-absence-of-epics-traffic) |
 | contract | M17 | Aggregate unanswered-search findings carry no data keys | Milestone | Open | No | D4 | owner picks the shape (separate aggregate code, `count` only, or documented exception); [detail](#m17---aggregate-unanswered-search-findings-carry-no-data-keys) |
 
 ### Decisions
@@ -630,7 +630,7 @@ Superseded Plan Artifacts: none
 Origin: 182961f / M11
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -654,7 +654,7 @@ Out of scope: the flag and the filter rule (a later work unit).
 
 Plan Status: accepted
 Plan Acceptance: 2026-09-03, owner decision D4
-Implementation Authorization: none
+Implementation Authorization: 2026-09-04, owner loop direction
 Superseded Plan Artifacts: none
 
 1. Rewrite the doc comment.
@@ -670,18 +670,18 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | linux, go 1.24 | Pending | none |
+| T1 | 2026-09-04 | linux, go1.24.4 | Pass | make check exit 0; single-reviewer third-person pass accepted |
 
 ##### Closure Evidence
 
-- none
+- committed in e3f7074 (push pending); single-reviewer review accepted, no must-fix findings
 
 #### M12 - One default snap length
 
 Origin: 182961f / M12
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -706,7 +706,7 @@ Out of scope: `bpf.AcceptLength` (Keep, CLOSED_DOORS: it must stay no smaller th
 
 Plan Status: accepted
 Plan Acceptance: 2026-09-03, owner decision D3
-Implementation Authorization: none
+Implementation Authorization: 2026-09-04, owner loop direction
 Superseded Plan Artifacts: none
 
 1. Add the root constant; replace the two package constants and the generator's reference.
@@ -723,19 +723,19 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | linux, go 1.24 | Pending | none |
-| T2 | Not run | linux, go 1.24 | Pending | none |
+| T1 | 2026-09-04 | linux, go1.24.4 | Pass | make check exit 0; single-reviewer third-person pass accepted |
+| T2 | 2026-09-04 | linux, go1.24.4 | Pass | make check exit 0; single-reviewer third-person pass accepted |
 
 ##### Closure Evidence
 
-- none
+- committed in c2aee82 (push pending); single-reviewer review accepted, no must-fix findings
 
 #### M13 - Wire constants of bpf and active come from the parsers
 
 Origin: 182961f / M13
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -761,7 +761,7 @@ Out of scope: the offsets (`off*`, `rel*`) and `frameLen` (Keep, CLOSED_DOORS).
 
 Plan Status: accepted
 Plan Acceptance: 2026-09-03, owner decision D3
-Implementation Authorization: none
+Implementation Authorization: 2026-09-04, owner loop direction
 Superseded Plan Artifacts: none
 
 1. Export the two `arp` length constants.
@@ -780,20 +780,20 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | linux, go 1.24 | Pending | none |
-| T2 | Not run | linux, go 1.24 | Pending | none |
-| T3 | Not run | linux, go 1.24 | Pending | none |
+| T1 | 2026-09-04 | linux, go1.24.4 | Pass | make check exit 0; single-reviewer third-person pass accepted |
+| T2 | 2026-09-04 | linux, go1.24.4 | Pass | make check exit 0; single-reviewer third-person pass accepted |
+| T3 | 2026-09-04 | linux, go1.24.4 | Pass | make check exit 0; single-reviewer third-person pass accepted |
 
 ##### Closure Evidence
 
-- none
+- committed in 131dc1b (push pending); single-reviewer review accepted, no must-fix findings
 
 #### M14 - Shared helpers named once where both users already import
 
 Origin: 182961f / M14
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -820,7 +820,7 @@ Out of scope: `htons`/`readTimeout`, the receive buffers, `unanswered*` (Keep, C
 
 Plan Status: accepted
 Plan Acceptance: 2026-09-03, owner decision D3
-Implementation Authorization: none
+Implementation Authorization: 2026-09-04, owner loop direction
 Superseded Plan Artifacts: none
 
 1. Export the three helpers with their doc comments.
@@ -838,19 +838,19 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | linux, go 1.24 | Pending | none |
-| T2 | Not run | linux, go 1.24 | Pending | none |
+| T1 | 2026-09-04 | linux, go1.24.4 | Pass | make check exit 0; single-reviewer third-person pass accepted |
+| T2 | 2026-09-04 | linux, go1.24.4 | Pass | make check exit 0; single-reviewer third-person pass accepted |
 
 ##### Closure Evidence
 
-- none
+- committed in 793421a (push pending); single-reviewer review accepted, no must-fix findings
 
 #### M15 - Oper-state unknown sentinel named once
 
 Origin: 182961f / M15
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -876,7 +876,7 @@ Out of scope: the VLAN `unknown` and `addrText` literals (Keep).
 
 Plan Status: accepted
 Plan Acceptance: 2026-09-03, owner decision D4
-Implementation Authorization: none
+Implementation Authorization: 2026-09-04, owner loop direction
 Superseded Plan Artifacts: none
 
 1. Export and mirror the constant.
@@ -894,19 +894,19 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | linux, go 1.24 | Pending | none |
-| T2 | Not run | linux, go 1.24 | Pending | none |
+| T1 | 2026-09-04 | linux, go1.24.4 | Pass | make check exit 0; single-reviewer third-person pass accepted |
+| T2 | 2026-09-04 | linux, go1.24.4 | Pass | make check exit 0; single-reviewer third-person pass accepted |
 
 ##### Closure Evidence
 
-- none
+- committed in 793421a (push pending); single-reviewer review accepted, no must-fix findings
 
 #### M16 - diagnose --epics reports the absence of EPICS traffic
 
 Origin: 182961f / M16
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: Complete
 
 ##### Summary
 
@@ -932,7 +932,7 @@ Out of scope: exit code 5 (target-bound); a plain `diagnose`; `nothing-seen` of 
 
 Plan Status: accepted
 Plan Acceptance: 2026-09-03, paired-debate synthesis (item 18)
-Implementation Authorization: none
+Implementation Authorization: 2026-09-04, owner loop direction
 Superseded Plan Artifacts: none
 
 1. Add the guard and finding in `RunAll`.
@@ -949,12 +949,12 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | linux, go 1.24 | Pending | none |
-| T2 | Not run | linux, go 1.24 | Pending | none |
+| T1 | 2026-09-04 | linux, go1.24.4 | Pass | make check exit 0; single-reviewer third-person pass accepted |
+| T2 | 2026-09-04 | linux, go1.24.4 | Pass | make check exit 0; single-reviewer third-person pass accepted |
 
 ##### Closure Evidence
 
-- none
+- committed in c6b8268 (push pending); single-reviewer review accepted, no must-fix findings
 
 #### M17 - Aggregate unanswered-search findings carry no data keys
 
