@@ -7,7 +7,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: M1-M16 are committed and verified (push pending); M17 needs the owner to pick its shape.
+Next session entry point: `docs/milestone-182961f.md`: M1-M17 are committed and verified. No open milestone remains.
 
 ## Milestone
 
@@ -31,7 +31,7 @@ Next session entry point: `docs/milestone-182961f.md`: M1-M16 are committed and 
 | vocabulary | M14 | Shared helpers named once where both users already import | Milestone | Complete | No | D3 | `output.Dash`, `device.AddrText`, `active.DirectedBroadcast` replace six copies; output unchanged; [detail](#m14---shared-helpers-named-once-where-both-users-already-import) |
 | vocabulary | M15 | Oper-state unknown sentinel named once | Milestone | Complete | No | D4 | `interfaces.OperStateUnknown` mirrored as `output.OperStateUnknown`; `text` and `tui` compare against it; [detail](#m15---oper-state-unknown-sentinel-named-once) |
 | rules | M16 | diagnose --epics reports the absence of EPICS traffic | Milestone | Complete | No | D2 | one Inferred finding under `--epics` when no CA/PVA record exists; golden added; [detail](#m16---diagnose---epics-reports-the-absence-of-epics-traffic) |
-| contract | M17 | Aggregate unanswered-search findings carry no data keys | Milestone | Open | No | D4 | owner picks the shape (separate aggregate code, `count` only, or documented exception); [detail](#m17---aggregate-unanswered-search-findings-carry-no-data-keys) |
+| contract | M17 | Aggregate unanswered-search findings carry no data keys | Milestone | Complete | No | D4, D5 | own codes `ca-searches-no-response`/`pva-searches-no-response` with a `searches` key; [detail](#m17---aggregate-unanswered-search-findings-carry-no-data-keys) |
 
 ### Decisions
 
@@ -41,6 +41,7 @@ Next session entry point: `docs/milestone-182961f.md`: M1-M16 are committed and 
 | D2 | M16 fate converged in the same debate: an Inferred `epics-nothing-observed` finding under `--epics`, exit code unchanged; implementation not yet authorized | 2026-09-03 |
 | D3 | Re-examination of the Keep rows of `docs/CLOSED_DOORS.md` (paired review debate, chat only): `dashIf`, `addrText`, `broadcastOf` become M14; the two snap-length defaults become M12; the EtherType, opcode, hardware and protocol constants of bpf and active become M13, with `arp` exporting its address-length constants; the U/L-bit test, the frame offsets, and `bpf.AcceptLength` stay Keep; the fixtures row keeps its verdict with a corrected premise; implementation of M12-M14 not yet authorized | 2026-09-03 |
 | D4 | M15, M11, and M17 move from Backlog to Milestone: M15 names the oper-state sentinel once (`interfaces.OperStateUnknown`, mirrored by `output`); M11 keeps `decode.SetPorts` and records it as the seam for offset EPICS ports; M17 is to be done, its shape still to be picked; implementation not yet authorized | 2026-09-03 |
+| D5 | M17 shape: separate aggregate codes `ca-searches-no-response`/`pva-searches-no-response`, per-search codes unchanged. The aggregate data key is `searches` (number of unanswered searches), distinct from the per-search `count`, so the two never collide under one key | 2026-09-04 |
 
 ### Assignment History
 
@@ -961,54 +962,55 @@ Superseded Plan Artifacts: none
 Origin: 182961f / M17
 Identity History: none
 GitHub Issue: none
-Status: Open
+Status: Complete
 
 ##### Summary
 
-Found while applying M2. `caRules` and `pvaRules` emit one Inferred `ca-search-no-response` / `pva-search-no-response` finding summarising all unanswered searches ("N CA search(es) received no observed response"). It has no `pv`, `client`, or `count` because it is an aggregate, yet the schema table lists those keys for the code and the M2 rule says every emitter carries them. The owner has decided the work is to be done; its shape is still to be picked.
+Found while applying M2. `caRules` and `pvaRules` emit one Inferred finding summarising all unanswered searches ("N CA search(es) received no observed response"). It reused the per-search code, which the schema table lists with `pv`, `client`, `count`, yet the aggregate has none of those. Shape 1 (D5) separates it: the aggregate gets its own codes and carries only a `searches` count.
 
 ##### Scope
 
-One of three shapes, to be picked:
+- `internal/diagnose/rules.go`: new codes `CodeCASearchesUnanswered`/`CodePVASearchesUnanswered`; the two aggregate emitters use them with data `searches`. Per-search codes and keys unchanged.
+- `docs/output-schema.md`: one row for the new codes with key `searches`.
+- Golden `two-sources.diagnosis` regenerated; `rules_test.go` asserts both the CA and PVA aggregate code and its `searches` data.
 
-1. Separate aggregate codes `ca-searches-no-response` / `pva-searches-no-response` with data `count`, added to the schema table; the per-search findings keep their code and keys (recommended: the code names a condition, the keys describe one instance, and an aggregate is not an instance).
-2. The aggregate keeps its code and carries `count` only; the schema row notes the exception.
-3. The aggregate keeps its code and no data; the schema row documents the exception.
-
-Out of scope: the per-search Observed findings (they carry the keys).
+Out of scope: the per-search Observed findings (they carry `pv`, `client`, `count`).
 
 ##### Completion Criteria
 
-- Emitters and the schema table agree under the picked shape; the `two-sources.diagnosis` golden matches.
+- The aggregate emits a distinct code with data `searches`; per-search emitters unchanged; schema table matches; golden regenerated.
 
 ##### Dependencies And Decisions
 
-- D4; the shape decision is pending
+- D4, D5
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-04, owner decision D5 (shape 1)
+Implementation Authorization: 2026-09-04, owner direction
 Superseded Plan Artifacts: none
 
-1. To be written after the shape is picked.
+1. Add the two codes; switch the aggregate emitters to them with data `searches`.
+2. Add the schema row; regenerate the golden; extend the tests.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | golden | `go test ./cmd/wirepup -run TestGolden` | linux, go 1.24 | two-sources diagnosis golden matches the decided shape |
+| T1 | golden | `go test ./cmd/wirepup -run TestGolden` | linux, go 1.24 | two-sources golden shows the aggregate code with `searches` |
+| T2 | unit | `go test ./internal/diagnose -run 'TestCARules|TestPVARulesAndRestart'` | linux, go 1.24 | both aggregate codes emitted with non-empty `searches` |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | linux, go 1.24 | Pending | none |
+| T1 | 2026-09-04T10:37Z | linux, go1.24.4 | Pass | golden diff limited to the aggregate line: `ca-search-no-response` to `ca-searches-no-response` plus `searches: "1"`; per-search `count: "3"` unchanged |
+| T2 | 2026-09-04T10:37Z | linux, go1.24.4 | Pass | `make check` exit 0; CA and PVA aggregate assertions pass; single-reviewer third-person and second-person passes accepted, no must-fix |
 
 ##### Closure Evidence
 
-- none
+- committed in f85b84f; info items (data key `count` to `searches`, PVA aggregate assertion) applied and reviewed
 
 ## Backlog
 
