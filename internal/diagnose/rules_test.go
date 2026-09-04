@@ -64,7 +64,7 @@ func TestCARules(t *testing.T) {
 			t.Fatalf("observed missing %s: %s", want, codes(r.Observed))
 		}
 	}
-	for _, want := range []string{CodeCAMultipleServers, CodeCASearchUnanswered, CodeCASearchDestination, CodeCABeaconOnly} {
+	for _, want := range []string{CodeCAMultipleServers, CodeCASearchesUnanswered, CodeCASearchDestination, CodeCABeaconOnly} {
 		if !strings.Contains(codes(r.Inferred), want) {
 			t.Fatalf("inferred missing %s: %s", want, codes(r.Inferred))
 		}
@@ -73,8 +73,13 @@ func TestCARules(t *testing.T) {
 		t.Fatal("EPICSOnly ran the subnet rules")
 	}
 	for _, f := range r.Inferred {
-		if f.Code == CodeCASearchUnanswered && !strings.Contains(f.Text, "not proof") {
-			t.Fatalf("wording: %s", f.Text)
+		if f.Code == CodeCASearchesUnanswered {
+			if !strings.Contains(f.Text, "not proof") {
+				t.Fatalf("wording: %s", f.Text)
+			}
+			if f.Data["searches"] == "" {
+				t.Fatalf("aggregate finding missing searches data: %+v", f.Data)
+			}
 		}
 	}
 }
@@ -89,6 +94,18 @@ func TestPVARulesAndRestart(t *testing.T) {
 	r := RunAll(ContextFromPrefixes("enp3s0", []netip.Prefix{caLocal}), tbl, netip.Addr{}, Options{EPICSOnly: true})
 	if !strings.Contains(codes(r.Observed), CodePVASearchUnanswered) || !strings.Contains(codes(r.Inferred), CodePVAServerRestart) {
 		t.Fatalf("observed %s inferred %s", codes(r.Observed), codes(r.Inferred))
+	}
+	found := false
+	for _, f := range r.Inferred {
+		if f.Code == CodePVASearchesUnanswered {
+			found = true
+			if f.Data["searches"] == "" {
+				t.Fatalf("PVA aggregate finding missing searches data: %+v", f.Data)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("PVA aggregate finding absent: %s", codes(r.Inferred))
 	}
 }
 

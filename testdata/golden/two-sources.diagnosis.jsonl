@@ -28,9 +28,12 @@
   ],
   "inferred": [
     {
-      "code": "ca-search-no-response",
+      "code": "ca-searches-no-response",
       "text": "1 CA search(es) received no observed response; absence of a reply is not proof that the PV does not exist: the server may be on another subnet, its reply may not cross this interface, or EPICS_CA_ADDR_LIST may not reach it",
-      "evidence": []
+      "evidence": [],
+      "data": {
+        "searches": "1"
+      }
     },
     {
       "code": "discovery-differs-between-sources",

@@ -135,6 +135,7 @@ Finding: `code` (stable identifier such as `same-l2-different-subnet` or `ca-sea
 | `dhcp-discover-no-offer` | `mac`, `xid` |
 | `auto-ip-fallback` | `mac`, `address` |
 | `ca-search-no-response`, `pva-search-no-response` | `pv`, `client`, `count` |
+| `ca-searches-no-response`, `pva-searches-no-response` | `searches` |
 | `ca-multiple-servers`, `pva-multiple-servers` | `pv`, `servers` |
 | `ca-server-seen` | `server`, `tcp_port` |
 | `pva-server-seen` | `server`, `tcp_port`, `guid` |

@@ -12,20 +12,22 @@ import (
 
 // Finding codes of the address-assignment and EPICS rules (M9).
 const (
-	CodeDHCPNoOffer          = "dhcp-discover-no-offer"
-	CodeDHCPNak              = "dhcp-nak"
-	CodeAutoIPFallback       = "auto-ip-fallback"
-	CodeCASearchUnanswered   = "ca-search-no-response"
-	CodeCAMultipleServers    = "ca-multiple-servers"
-	CodeCAServerSeen         = "ca-server-seen"
-	CodeCABeaconOnly         = "ca-beacon-without-search"
-	CodeCASearchDestination  = "ca-search-destination-not-local"
-	CodePVASearchUnanswered  = "pva-search-no-response"
-	CodePVAMultipleServers   = "pva-multiple-servers"
-	CodePVAServerSeen        = "pva-server-seen"
-	CodePVAServerRestart     = "pva-server-restarted"
-	CodeSourceDifference     = "discovery-differs-between-sources"
-	CodeEPICSNothingObserved = "epics-nothing-observed"
+	CodeDHCPNoOffer           = "dhcp-discover-no-offer"
+	CodeDHCPNak               = "dhcp-nak"
+	CodeAutoIPFallback        = "auto-ip-fallback"
+	CodeCASearchUnanswered    = "ca-search-no-response"
+	CodeCASearchesUnanswered  = "ca-searches-no-response"
+	CodeCAMultipleServers     = "ca-multiple-servers"
+	CodeCAServerSeen          = "ca-server-seen"
+	CodeCABeaconOnly          = "ca-beacon-without-search"
+	CodeCASearchDestination   = "ca-search-destination-not-local"
+	CodePVASearchUnanswered   = "pva-search-no-response"
+	CodePVASearchesUnanswered = "pva-searches-no-response"
+	CodePVAMultipleServers    = "pva-multiple-servers"
+	CodePVAServerSeen         = "pva-server-seen"
+	CodePVAServerRestart      = "pva-server-restarted"
+	CodeSourceDifference      = "discovery-differs-between-sources"
+	CodeEPICSNothingObserved  = "epics-nothing-observed"
 )
 
 // dhcpOfferGrace is how long after the last discover an offer may still
@@ -185,8 +187,9 @@ func (r *Report) caRules(ctx Context, table *device.Table) {
 	}
 	if unanswered > 0 {
 		r.Inferred = append(r.Inferred, Finding{
-			Code: CodeCASearchUnanswered,
+			Code: CodeCASearchesUnanswered,
 			Text: fmt.Sprintf("%d CA search(es) received no observed response; absence of a reply is not proof that the PV does not exist: the server may be on another subnet, its reply may not cross this interface, or EPICS_CA_ADDR_LIST may not reach it", unanswered),
+			Data: map[string]string{"searches": fmt.Sprint(unanswered)},
 		})
 	}
 	for _, srv := range servers {
@@ -265,8 +268,9 @@ func (r *Report) pvaRules(table *device.Table) {
 	}
 	if unanswered > 0 {
 		r.Inferred = append(r.Inferred, Finding{
-			Code: CodePVASearchUnanswered,
+			Code: CodePVASearchesUnanswered,
 			Text: fmt.Sprintf("%d PVA search(es) received no observed response; absence of a reply is not proof that the PV does not exist", unanswered),
+			Data: map[string]string{"searches": fmt.Sprint(unanswered)},
 		})
 	}
 	byAddr := map[string][]device.PVAServer{}
