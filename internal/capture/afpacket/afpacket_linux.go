@@ -51,7 +51,7 @@ func Open(opts Options) (*Source, error) {
 	}
 	snap := opts.SnapLen
 	if snap <= 0 {
-		snap = DefaultSnapLen
+		snap = capture.DefaultSnapLen
 	}
 	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW|unix.SOCK_CLOEXEC, 0)
 	if err != nil {

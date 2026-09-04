@@ -34,10 +34,9 @@ const (
 
 // Sizes and names.
 const (
-	packetBuffer   = 256
-	DefaultSnapLen = 262144
-	extPcapng      = ".pcapng"
-	unnamedIface   = "pcap"
+	packetBuffer = 256
+	extPcapng    = ".pcapng"
+	unnamedIface = "pcap"
 )
 
 // ErrFormat reports a file that is neither PCAP nor PCAPNG.
@@ -187,7 +186,7 @@ type Writer struct {
 // PCAPNG interface description block.
 func Create(path, iface string, snapLen int) (*Writer, error) {
 	if snapLen <= 0 {
-		snapLen = DefaultSnapLen
+		snapLen = capture.DefaultSnapLen
 	}
 	f, err := os.Create(path)
 	if err != nil {

@@ -20,6 +20,12 @@ const (
 	LinkTypeLinuxSLL LinkType = 113
 )
 
+// DefaultSnapLen is the capture length a source uses when asked for zero:
+// large enough to keep the whole frame on any common link. Both the file
+// writer and the live socket default to it. It is not the BPF accept
+// length (`bpf.AcceptLength`), which only needs to be no smaller.
+const DefaultSnapLen = 262144
+
 // Packet is one captured frame together with the context needed for
 // evidence: when it was seen, on which interface, and how much of it
 // the source kept.

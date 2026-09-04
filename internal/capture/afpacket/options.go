@@ -12,9 +12,6 @@ import (
 	"github.com/jeonghanlee/wirepup/internal/capture/bpf"
 )
 
-// DefaultSnapLen is the capture length used when Options.SnapLen is zero.
-const DefaultSnapLen = 262144
-
 // ErrPrivilege marks a socket failure caused by a missing CAP_NET_RAW so
 // that the CLI can map it to the insufficient-privilege exit code.
 var ErrPrivilege = errors.New("raw packet capture requires CAP_NET_RAW")

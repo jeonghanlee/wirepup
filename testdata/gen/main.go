@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/jeonghanlee/wirepup/internal/capture"
 	"github.com/jeonghanlee/wirepup/internal/capture/pcapfile"
 	"github.com/jeonghanlee/wirepup/internal/epics/ca"
 	"github.com/jeonghanlee/wirepup/internal/epics/pva"
@@ -144,7 +145,7 @@ func main() {
 
 // write stores one fixture in the format the path's extension selects.
 func write(path string, f fixture) {
-	w, err := pcapfile.Create(path, "enp3s0", pcapfile.DefaultSnapLen)
+	w, err := pcapfile.Create(path, "enp3s0", capture.DefaultSnapLen)
 	if err != nil {
 		fail(err)
 	}
