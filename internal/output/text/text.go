@@ -29,10 +29,10 @@ func Interfaces(w io.Writer, doc output.Interfaces) error {
 		if i.Up {
 			link = "up"
 		}
-		if i.OperState != "" && i.OperState != unknownValue {
+		if i.OperState != "" && i.OperState != output.OperStateUnknown {
 			link = i.OperState
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%s\n", i.Name, link, dash(i.MAC), i.MTU, dash(strings.Join(i.IPv4, ",")), dash(strings.Join(i.IPv6, ",")))
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%s\n", i.Name, link, output.Dash(i.MAC), i.MTU, output.Dash(strings.Join(i.IPv4, ",")), output.Dash(strings.Join(i.IPv6, ",")))
 	}
 	return tw.Flush()
 }
@@ -119,7 +119,7 @@ func Devices(w io.Writer, doc output.Devices) error {
 		if d.Local {
 			mac += " (local)"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", mac, dash(strings.Join(v4, " ")), dash(strings.Join(v6, " ")), d.VLAN, dash(d.Vendor), dash(strings.Join(d.Protocols, ",")),
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", mac, output.Dash(strings.Join(v4, " ")), output.Dash(strings.Join(v6, " ")), d.VLAN, output.Dash(d.Vendor), output.Dash(strings.Join(d.Protocols, ",")),
 			d.FirstSeen.Local().Format(timeLayout), d.LastSeen.Local().Format(timeLayout))
 	}
 	if err := tw.Flush(); err != nil {
@@ -138,7 +138,7 @@ func Devices(w io.Writer, doc output.Devices) error {
 		tw = tabwriter.NewWriter(w, tabMinWidth, 0, tabPadding, ' ', 0)
 		fmt.Fprintln(tw, "SERVER\tTCP PORT\tMAC\tANSWERS\tBEACONS\tPVs ANSWERED")
 		for _, s := range doc.EPICS.CAServers {
-			fmt.Fprintf(tw, "%s\t%d\t%s\t%d\t%d\t%s\n", s.Address, s.TCPPort, dash(s.MAC), s.Answers, s.Beacons, dash(strings.Join(s.PVs, ",")))
+			fmt.Fprintf(tw, "%s\t%d\t%s\t%d\t%d\t%s\n", s.Address, s.TCPPort, output.Dash(s.MAC), s.Answers, s.Beacons, output.Dash(strings.Join(s.PVs, ",")))
 		}
 		if err := tw.Flush(); err != nil {
 			return err
@@ -150,7 +150,7 @@ func Devices(w io.Writer, doc output.Devices) error {
 		tw = tabwriter.NewWriter(w, tabMinWidth, 0, tabPadding, ' ', 0)
 		fmt.Fprintln(tw, "SERVER\tTCP PORT\tGUID\tMAC\tANSWERS\tBEACONS\tPVs ANSWERED")
 		for _, s := range doc.EPICS.PVAServers {
-			fmt.Fprintf(tw, "%s\t%d\t%s\t%s\t%d\t%d\t%s\n", s.Address, s.TCPPort, s.GUID, dash(s.MAC), s.Answers, s.Beacons, dash(strings.Join(s.PVs, ",")))
+			fmt.Fprintf(tw, "%s\t%d\t%s\t%s\t%d\t%d\t%s\n", s.Address, s.TCPPort, s.GUID, output.Dash(s.MAC), s.Answers, s.Beacons, output.Dash(strings.Join(s.PVs, ",")))
 		}
 		if err := tw.Flush(); err != nil {
 			return err
@@ -182,7 +182,7 @@ func Devices(w io.Writer, doc output.Devices) error {
 		if n.PortVLANID != 0 {
 			vlan = fmt.Sprintf("%d", n.PortVLANID)
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", dash(n.SystemName), n.PortID, vlan, dash(strings.Join(n.MgmtAddrs, ",")), n.ChassisID)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", output.Dash(n.SystemName), n.PortID, vlan, output.Dash(strings.Join(n.MgmtAddrs, ",")), n.ChassisID)
 	}
 	return tw.Flush()
 }
@@ -193,7 +193,7 @@ func neighborBlock(b *strings.Builder, e output.DeviceEvent) {
 		return
 	}
 	b.WriteString("NETWORK NEIGHBOR (LLDP)\n")
-	line(b, "System", dash(n.SystemName))
+	line(b, "System", output.Dash(n.SystemName))
 	line(b, "Chassis", n.ChassisID)
 	line(b, "Port", n.PortID)
 	if n.PortDesc != "" {
@@ -211,7 +211,7 @@ func neighborBlock(b *strings.Builder, e output.DeviceEvent) {
 		line(b, "VLANs", strings.Join(n.VLANNames, ", "))
 	}
 	if len(n.Caps) > 0 {
-		line(b, "Caps", strings.Join(n.Caps, ",")+" (enabled: "+dash(strings.Join(n.EnabledCaps, ","))+")")
+		line(b, "Caps", strings.Join(n.Caps, ",")+" (enabled: "+output.Dash(strings.Join(n.EnabledCaps, ","))+")")
 	}
 	line(b, "Evidence", fmt.Sprintf("%s #%d", e.Ref.Source, e.Ref.PacketID))
 	b.WriteString("\n")
@@ -360,11 +360,4 @@ func bestIPv4(d output.Device) string {
 
 func line(b *strings.Builder, label, value string) {
 	fmt.Fprintf(b, "%-*s %s\n", labelWidth, label, value)
-}
-
-func dash(s string) string {
-	if s == "" {
-		return "-"
-	}
-	return s
 }

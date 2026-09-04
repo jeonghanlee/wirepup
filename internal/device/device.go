@@ -538,12 +538,12 @@ func (t *Table) applyDHCP(frame *ethernet.Observation, v dhcpv4.Observation) []E
 		if !want.IsValid() || want.IsUnspecified() {
 			want = v.ClientIP
 		}
-		addTimeline(client, v.Timestamp, "DHCP request "+addrText(want), ref)
+		addTimeline(client, v.Timestamp, "DHCP request "+AddrText(want), ref)
 	case dhcpv4.Offer:
 		x.Offer = v.Timestamp
 		x.OfferedIP = v.YourIP
 		x.ServerIP = serverAddr(v)
-		addTimeline(client, v.Timestamp, fmt.Sprintf("DHCP offer %s from %s", addrText(v.YourIP), addrText(x.ServerIP)), ref)
+		addTimeline(client, v.Timestamp, fmt.Sprintf("DHCP offer %s from %s", AddrText(v.YourIP), AddrText(x.ServerIP)), ref)
 		events = append(events, t.applyDHCPServer(frame, v, ref)...)
 	case dhcpv4.ACK:
 		x.ACK = v.Timestamp
@@ -557,7 +557,7 @@ func (t *Table) applyDHCP(frame *ethernet.Observation, v dhcpv4.Observation) []E
 	case dhcpv4.NAK:
 		x.NAK = v.Timestamp
 		x.ServerIP = serverAddr(v)
-		addTimeline(client, v.Timestamp, "DHCP nak from "+addrText(x.ServerIP), ref)
+		addTimeline(client, v.Timestamp, "DHCP nak from "+AddrText(x.ServerIP), ref)
 		events = append(events, t.applyDHCPServer(frame, v, ref)...)
 	}
 	return events
@@ -779,7 +779,7 @@ func addProtocol(d *Device, p string) {
 	sort.Strings(d.Protocols)
 }
 
-func addrText(a netip.Addr) string {
+func AddrText(a netip.Addr) string {
 	if !a.IsValid() || a.IsUnspecified() {
 		return "unknown"
 	}

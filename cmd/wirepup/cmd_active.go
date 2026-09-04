@@ -239,7 +239,7 @@ func runConnect(ctx context.Context, e *env, args []string) int {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return activeExit(err)
 	}
-	executed = append(executed, diagnose.Finding{Code: "address-added", Text: fmt.Sprintf("added %s to %s (label %s), recorded in %s: %s", entry.Address, entry.Interface, dashIfEmpty(entry.Label), mgr.Path, strings.Join(entry.Argv, " ")), Data: map[string]string{"address": entry.Address.String(), "interface": entry.Interface, "label": entry.Label, "argv": strings.Join(entry.Argv, " "), "session": mgr.Path}})
+	executed = append(executed, diagnose.Finding{Code: "address-added", Text: fmt.Sprintf("added %s to %s (label %s), recorded in %s: %s", entry.Address, entry.Interface, output.Dash(entry.Label), mgr.Path, strings.Join(entry.Argv, " ")), Data: map[string]string{"address": entry.Address.String(), "interface": entry.Interface, "label": entry.Label, "argv": strings.Join(entry.Argv, " "), "session": mgr.Path}})
 	renderExecuted(e, &g, executed)
 	fmt.Fprintf(e.stderr, "Remove it later with: wirepup disconnect -i %s %s\n", entry.Interface, entry.Address)
 	return exitOK
@@ -344,19 +344,11 @@ func refuseIfConfigured(ctx diagnose.Context, p netip.Prefix) error {
 		if p.Addr() == p.Masked().Addr() {
 			return fmt.Errorf("%w: %s is the network address", errUnsafe, p.Addr())
 		}
-		if p.Addr() == broadcastOf(p) {
+		if b, _ := active.DirectedBroadcast(p); p.Addr() == b {
 			return fmt.Errorf("%w: %s is the broadcast address", errUnsafe, p.Addr())
 		}
 	}
 	return nil
-}
-
-// broadcastOf returns the last address of an IPv4 prefix.
-func broadcastOf(p netip.Prefix) netip.Addr {
-	a := p.Masked().Addr().As4()
-	v := uint32(a[0])<<24 | uint32(a[1])<<16 | uint32(a[2])<<8 | uint32(a[3])
-	v |= uint32(0xffffffff) >> p.Bits()
-	return netip.AddrFrom4([4]byte{byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v)})
 }
 
 func renderReport(e *env, g *globalFlags, source string, r diagnose.Report) {
@@ -389,11 +381,4 @@ func activeSourceName(g *globalFlags) string {
 // interface field stays the interface name, empty when none was given.
 func renderExecuted(e *env, g *globalFlags, executed []diagnose.Finding) {
 	renderReport(e, g, activeSourceName(g), diagnose.Report{Interface: g.iface, Executed: executed})
-}
-
-func dashIfEmpty(s string) string {
-	if s == "" {
-		return "-"
-	}
-	return s
 }

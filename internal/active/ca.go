@@ -132,16 +132,16 @@ func IsBroadcast(addr netip.Addr, prefixes []netip.Prefix) bool {
 		return true
 	}
 	for _, p := range prefixes {
-		if b, ok := directedBroadcast(p); ok && b == addr {
+		if b, ok := DirectedBroadcast(p); ok && b == addr {
 			return true
 		}
 	}
 	return false
 }
 
-// directedBroadcast is the broadcast address of an IPv4 prefix; ok is
+// DirectedBroadcast is the broadcast address of an IPv4 prefix; ok is
 // false for IPv6 and for a prefix too small to have one.
-func directedBroadcast(p netip.Prefix) (netip.Addr, bool) {
+func DirectedBroadcast(p netip.Prefix) (netip.Addr, bool) {
 	if !p.Addr().Is4() || p.Bits() > 30 {
 		return netip.Addr{}, false
 	}
@@ -156,7 +156,7 @@ func directedBroadcast(p netip.Prefix) (netip.Addr, bool) {
 func BroadcastDestinations(prefixes []netip.Prefix, port uint16) []Destination {
 	var out []Destination
 	for _, p := range prefixes {
-		if b, ok := directedBroadcast(p); ok {
+		if b, ok := DirectedBroadcast(p); ok {
 			out = append(out, Destination{AddrPort: netip.AddrPortFrom(b, port), Broadcast: true})
 		}
 	}

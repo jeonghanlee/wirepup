@@ -221,7 +221,7 @@ func (m *Model) deviceLines() []string {
 		if d.Local {
 			mac += "*"
 		}
-		lines = append(lines, fmt.Sprintf("%-18s %-16s %-24s %-8s %-22s %-18s %s", mac, dash(d.PrimaryIPv4), dash(d.PrimaryIPv6), d.VLAN, truncate(dash(d.Vendor), 22), truncate(strings.Join(d.Protocols, ","), 18), d.LastSeen.Local().Format(timeLayout)))
+		lines = append(lines, fmt.Sprintf("%-18s %-16s %-24s %-8s %-22s %-18s %s", mac, output.Dash(d.PrimaryIPv4), output.Dash(d.PrimaryIPv6), d.VLAN, truncate(output.Dash(d.Vendor), 22), truncate(strings.Join(d.Protocols, ","), 18), d.LastSeen.Local().Format(timeLayout)))
 	}
 	if len(m.devices.Neighbors) > 0 {
 		lines = append(lines, "", "NEIGHBORS (LLDP)")
@@ -230,7 +230,7 @@ func (m *Model) deviceLines() []string {
 			if n.PortVLANID != 0 {
 				vlan = fmt.Sprint(n.PortVLANID)
 			}
-			lines = append(lines, fmt.Sprintf("%s port %s  port VLAN %s  mgmt %s", dash(n.SystemName), n.PortID, vlan, dash(strings.Join(n.MgmtAddrs, ","))))
+			lines = append(lines, fmt.Sprintf("%s port %s  port VLAN %s  mgmt %s", output.Dash(n.SystemName), n.PortID, vlan, output.Dash(strings.Join(n.MgmtAddrs, ","))))
 		}
 	}
 	if len(m.devices.Conflicts) > 0 {
@@ -261,7 +261,7 @@ func (m *Model) epicsLines() []string {
 	ep := m.devices.EPICS
 	lines := []string{"CA SERVERS"}
 	for _, s := range ep.CAServers {
-		lines = append(lines, fmt.Sprintf("  %s tcp %d  answers %d  beacons %d  PVs %s", s.Address, s.TCPPort, s.Answers, s.Beacons, truncate(dash(strings.Join(s.PVs, ",")), 60)))
+		lines = append(lines, fmt.Sprintf("  %s tcp %d  answers %d  beacons %d  PVs %s", s.Address, s.TCPPort, s.Answers, s.Beacons, truncate(output.Dash(strings.Join(s.PVs, ",")), 60)))
 	}
 	if len(ep.CAServers) == 0 {
 		lines = append(lines, "  (none observed)")
@@ -302,10 +302,10 @@ func (m *Model) interfaceLines() []string {
 		if i.Up {
 			link = "up"
 		}
-		if i.OperState != "" && i.OperState != unknownValue {
+		if i.OperState != "" && i.OperState != output.OperStateUnknown {
 			link = i.OperState
 		}
-		lines = append(lines, fmt.Sprintf("%-12s %-6s %-18s %-6d %-20s %s", i.Name, link, dash(i.MAC), i.MTU, dash(strings.Join(i.IPv4, ",")), dash(strings.Join(i.IPv6, ","))))
+		lines = append(lines, fmt.Sprintf("%-12s %-6s %-18s %-6d %-20s %s", i.Name, link, output.Dash(i.MAC), i.MTU, output.Dash(strings.Join(i.IPv4, ",")), output.Dash(strings.Join(i.IPv6, ","))))
 	}
 	return lines
 }
@@ -367,11 +367,4 @@ func truncate(s string, n int) string {
 		return s[:n]
 	}
 	return s[:n-1] + "~"
-}
-
-func dash(s string) string {
-	if s == "" {
-		return "-"
-	}
-	return s
 }

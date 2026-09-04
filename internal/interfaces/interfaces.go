@@ -15,9 +15,9 @@ import (
 
 // sysfs locations for link state.
 const (
-	sysClassNet   = "/sys/class/net"
-	operStateFile = "operstate"
-	operUnknown   = "unknown"
+	sysClassNet      = "/sys/class/net"
+	operStateFile    = "operstate"
+	OperStateUnknown = "unknown"
 )
 
 // Interface is one local interface.
@@ -94,7 +94,7 @@ func convert(ifi net.Interface) Interface {
 func operState(name string) string {
 	b, err := os.ReadFile(filepath.Join(sysClassNet, name, operStateFile))
 	if err != nil {
-		return operUnknown
+		return OperStateUnknown
 	}
 	return strings.TrimSpace(string(b))
 }

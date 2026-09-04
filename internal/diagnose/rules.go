@@ -84,7 +84,7 @@ func (r *Report) dhcpRules(table *device.Table, end time.Time) {
 		if !x.NAK.IsZero() {
 			r.Observed = append(r.Observed, Finding{
 				Code:     CodeDHCPNak,
-				Text:     fmt.Sprintf("DHCP NAK to %s from %s", x.ClientMAC, addrText(x.ServerIP)),
+				Text:     fmt.Sprintf("DHCP NAK to %s from %s", x.ClientMAC, device.AddrText(x.ServerIP)),
 				Evidence: []Ref{x.Ref},
 			})
 			r.Inferred = append(r.Inferred, Finding{
@@ -341,11 +341,4 @@ func (r *Report) sourceRules(table *device.Table) {
 	if differs {
 		r.Inferred = append(r.Inferred, Finding{Code: CodeSourceDifference, Text: "EPICS discovery traffic is present on one source but absent on another; clients and servers may be attached to different interfaces or VLANs"})
 	}
-}
-
-func addrText(a netip.Addr) string {
-	if !a.IsValid() || a.IsUnspecified() {
-		return "unknown"
-	}
-	return a.String()
 }

@@ -36,6 +36,11 @@ const (
 	ChangeConflict    = device.ChangeConflict
 )
 
+// OperStateUnknown is the interface oper-state sentinel, mirrored from
+// internal/interfaces so the text and tui renderers compare against this
+// package only.
+const OperStateUnknown = interfaces.OperStateUnknown
+
 // Schema identifiers; the major number changes only on a breaking change.
 const (
 	SchemaInterfaces  = "wirepup/interfaces/1"
@@ -443,7 +448,7 @@ func EventFrom(o observation.Observation) Event {
 		e.Fields["vlan_names"] = emptyList(v.VLANSummary())
 		e.Fields["max_frame_size"] = v.MaxFrameSize
 		e.Fields["malformed"] = v.Malformed
-		e.Summary = fmt.Sprintf("lldp %s port %s (%s) vlan %s mgmt %s", dashIf(v.SystemName), dashIf(v.PortID), dashIf(v.PortDescription), vlanText(v.PortVLANID), strings.Join(v.ManagementAddrs, ","))
+		e.Summary = fmt.Sprintf("lldp %s port %s (%s) vlan %s mgmt %s", Dash(v.SystemName), Dash(v.PortID), Dash(v.PortDescription), vlanText(v.PortVLANID), strings.Join(v.ManagementAddrs, ","))
 	case ipv4.Observation:
 		e.Fields["src"] = v.Src.String()
 		e.Fields["dst"] = v.Dst.String()
@@ -609,11 +614,11 @@ func dhcpSummary(v dhcpv4.Observation) string {
 	case dhcpv4.Offer, dhcpv4.ACK:
 		return fmt.Sprintf("dhcp %s %s -> client %s server %s", v.TypeName(), addrOrEmpty(v.YourIP), v.ClientMAC, addrOrEmpty(v.ServerID))
 	case dhcpv4.Request:
-		return fmt.Sprintf("dhcp request %s from %s (%s)", addrOrEmpty(v.RequestedIP), v.ClientMAC, dashIf(v.Hostname))
+		return fmt.Sprintf("dhcp request %s from %s (%s)", addrOrEmpty(v.RequestedIP), v.ClientMAC, Dash(v.Hostname))
 	case dhcpv4.NAK:
 		return fmt.Sprintf("dhcp nak to %s from %s", v.ClientMAC, addrOrEmpty(v.ServerID))
 	default:
-		return fmt.Sprintf("dhcp %s from %s (%s)", v.TypeName(), v.ClientMAC, dashIf(v.Hostname))
+		return fmt.Sprintf("dhcp %s from %s (%s)", v.TypeName(), v.ClientMAC, Dash(v.Hostname))
 	}
 }
 
@@ -706,7 +711,7 @@ func ndpSummary(v icmpv6.Observation) string {
 		for _, p := range v.Prefixes {
 			ps = append(ps, p.Prefix.String())
 		}
-		return fmt.Sprintf("ndp router advertisement from %s prefixes %s", v.Src, dashIf(strings.Join(ps, ",")))
+		return fmt.Sprintf("ndp router advertisement from %s prefixes %s", v.Src, Dash(strings.Join(ps, ",")))
 	case icmpv6.TypeRouterSolicit:
 		return fmt.Sprintf("ndp router solicitation from %s", v.Src)
 	default:
@@ -739,7 +744,11 @@ func addrOrEmpty(a netip.Addr) string {
 	return a.String()
 }
 
-func dashIf(s string) string {
+// Dash returns "-" for an empty string. The dash appears in the JSON
+// contract's summary field (docs/output-schema.md), so changing the
+// literal is a contract change, not a rendering change; the text and tui
+// renderers share this one helper.
+func Dash(s string) string {
 	if s == "" {
 		return "-"
 	}
