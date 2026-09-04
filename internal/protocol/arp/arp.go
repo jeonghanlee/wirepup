@@ -19,8 +19,8 @@ const (
 	ProtocolIPv4     = 0x0800
 	OpRequest        = 1
 	OpReply          = 2
-	hwAddrLen        = 6
-	protoAddrLen     = 4
+	HardwareAddrLen  = 6
+	ProtocolAddrLen  = 4
 )
 
 // Kind is the observation kind.
@@ -60,7 +60,7 @@ func Parse(b []byte) (Packet, error) {
 		return Packet{}, ErrTruncated
 	}
 	if binary.BigEndian.Uint16(b[0:2]) != HardwareEthernet || binary.BigEndian.Uint16(b[2:4]) != ProtocolIPv4 ||
-		b[4] != hwAddrLen || b[5] != protoAddrLen {
+		b[4] != HardwareAddrLen || b[5] != ProtocolAddrLen {
 		return Packet{}, ErrUnsupported
 	}
 	p := Packet{

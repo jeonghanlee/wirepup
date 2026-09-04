@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
+	"github.com/jeonghanlee/wirepup/internal/protocol/ethernet"
 )
 
 // Socket errors.
@@ -38,14 +39,14 @@ func openARP(iface string) (*arpSocket, error) {
 	if err != nil {
 		return nil, fmt.Errorf("active: interface %q: %w", iface, err)
 	}
-	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW|unix.SOCK_CLOEXEC, int(htons(etherTypeARP)))
+	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW|unix.SOCK_CLOEXEC, int(htons(ethernet.EtherTypeARP)))
 	if err != nil {
 		if errors.Is(err, unix.EPERM) || errors.Is(err, unix.EACCES) {
 			return nil, fmt.Errorf("%w: %v", ErrPrivilege, err)
 		}
 		return nil, fmt.Errorf("active: socket: %w", err)
 	}
-	if err := unix.Bind(fd, &unix.SockaddrLinklayer{Protocol: htons(etherTypeARP), Ifindex: ifi.Index}); err != nil {
+	if err := unix.Bind(fd, &unix.SockaddrLinklayer{Protocol: htons(ethernet.EtherTypeARP), Ifindex: ifi.Index}); err != nil {
 		unix.Close(fd)
 		return nil, fmt.Errorf("active: bind: %w", err)
 	}
@@ -60,7 +61,7 @@ func openARP(iface string) (*arpSocket, error) {
 func (s *arpSocket) send(frame []byte) error {
 	var addr [8]byte
 	copy(addr[:], frame[0:6])
-	sa := &unix.SockaddrLinklayer{Protocol: htons(etherTypeARP), Ifindex: s.index, Halen: 6, Addr: addr}
+	sa := &unix.SockaddrLinklayer{Protocol: htons(ethernet.EtherTypeARP), Ifindex: s.index, Halen: 6, Addr: addr}
 	return unix.Sendto(s.fd, frame, 0, sa)
 }
 
@@ -182,7 +183,7 @@ func Sweep(ctx context.Context, iface string, prefix netip.Prefix) (SweepResult,
 		if ctx.Err() != nil {
 			return res, ctx.Err()
 		}
-		if err := s.send(ARPFrame(s.mac, opRequest, sender, nil, h)); err != nil {
+		if err := s.send(ARPFrame(s.mac, arp.OpRequest, sender, nil, h)); err != nil {
 			return res, fmt.Errorf("active: send: %w", err)
 		}
 		res.Sent++

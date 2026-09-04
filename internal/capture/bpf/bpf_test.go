@@ -3,6 +3,8 @@ package bpf
 import (
 	"encoding/binary"
 	"testing"
+
+	"github.com/jeonghanlee/wirepup/internal/protocol/ethernet"
 )
 
 // run executes a program over one frame with a minimal classic BPF
@@ -71,7 +73,7 @@ func ipv4UDP(srcPort, dstPort uint16, fragOff uint16) []byte {
 	udp := make([]byte, 8)
 	binary.BigEndian.PutUint16(udp[0:], srcPort)
 	binary.BigEndian.PutUint16(udp[2:], dstPort)
-	return ethFrame(etherTypeIPv4, append(ip, udp...))
+	return ethFrame(ethernet.EtherTypeIPv4, append(ip, udp...))
 }
 
 func ipv6UDP(srcPort, dstPort uint16) []byte {
@@ -81,7 +83,7 @@ func ipv6UDP(srcPort, dstPort uint16) []byte {
 	udp := make([]byte, 8)
 	binary.BigEndian.PutUint16(udp[0:], srcPort)
 	binary.BigEndian.PutUint16(udp[2:], dstPort)
-	return ethFrame(etherTypeIPv6, append(ip, udp...))
+	return ethFrame(ethernet.EtherTypeIPv6, append(ip, udp...))
 }
 
 func TestAcceptAll(t *testing.T) {
@@ -139,7 +141,7 @@ func TestUDPPortRuleBothFamilies(t *testing.T) {
 		{"ipv6 src port", ipv6UDP(5064, 40000), true},
 		{"ipv6 other port", ipv6UDP(40000, 5076), false},
 		{"arp", ethFrame(0x0806, make([]byte, 28)), false},
-		{"short frame", ethFrame(etherTypeIPv4, []byte{0x45}), false},
+		{"short frame", ethFrame(ethernet.EtherTypeIPv4, []byte{0x45}), false},
 	}
 	for _, c := range cases {
 		got := run(t, prog, c.frame) != 0
@@ -150,7 +152,7 @@ func TestUDPPortRuleBothFamilies(t *testing.T) {
 }
 
 func TestMultipleRulesAndProtoOnly(t *testing.T) {
-	prog, err := Assemble([]Rule{{EtherType: 0x88cc}, {EtherType: etherTypeIPv6, IPProto: 58}, {EtherType: etherTypeIPv4, IPProto: 17, Port: 67}})
+	prog, err := Assemble([]Rule{{EtherType: 0x88cc}, {EtherType: ethernet.EtherTypeIPv6, IPProto: 58}, {EtherType: ethernet.EtherTypeIPv4, IPProto: 17, Port: 67}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +164,7 @@ func TestMultipleRulesAndProtoOnly(t *testing.T) {
 		want  bool
 	}{
 		{"lldp", ethFrame(0x88cc, nil), true},
-		{"icmpv6", ethFrame(etherTypeIPv6, icmp6), true},
+		{"icmpv6", ethFrame(ethernet.EtherTypeIPv6, icmp6), true},
 		{"ipv6 udp", ipv6UDP(1, 67), false},
 		{"dhcp v4", ipv4UDP(68, 67, 0), true},
 		{"other v4 udp", ipv4UDP(68, 69, 0), false},

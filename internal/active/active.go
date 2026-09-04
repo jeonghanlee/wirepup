@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
+	"github.com/jeonghanlee/wirepup/internal/protocol/ethernet"
 )
 
 // Budget constants from the ADR-0007 amendment.
@@ -31,14 +32,9 @@ const (
 	AnnounceWait  = 2 * time.Second
 )
 
-// Wire constants.
-const (
-	etherTypeARP      = 0x0806
-	opRequest         = 1
-	opReply           = 2
-	ethernetHeaderLen = 14
-	frameLen          = 42
-)
+// frameLen is this sender's own Ethernet/ARP frame layout; every other
+// wire value comes from the protocol packages.
+const frameLen = 42
 
 // Errors.
 var (
@@ -81,15 +77,15 @@ func (p Plan) String() string {
 func ARPFrame(srcMAC net.HardwareAddr, op uint16, senderIP netip.Addr, targetMAC net.HardwareAddr, targetIP netip.Addr) []byte {
 	f := make([]byte, frameLen)
 	dst := net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
-	if op == opReply && targetMAC != nil {
+	if op == arp.OpReply && targetMAC != nil {
 		dst = targetMAC
 	}
 	copy(f[0:6], dst)
 	copy(f[6:12], srcMAC)
-	binary.BigEndian.PutUint16(f[12:], etherTypeARP)
-	binary.BigEndian.PutUint16(f[14:], 1)
-	binary.BigEndian.PutUint16(f[16:], 0x0800)
-	f[18], f[19] = 6, 4
+	binary.BigEndian.PutUint16(f[12:], ethernet.EtherTypeARP)
+	binary.BigEndian.PutUint16(f[14:], arp.HardwareEthernet)
+	binary.BigEndian.PutUint16(f[16:], arp.ProtocolIPv4)
+	f[18], f[19] = arp.HardwareAddrLen, arp.ProtocolAddrLen
 	binary.BigEndian.PutUint16(f[20:], op)
 	copy(f[22:28], srcMAC)
 	s := senderIP.As4()
@@ -104,7 +100,7 @@ func ARPFrame(srcMAC net.HardwareAddr, op uint16, senderIP netip.Addr, targetMAC
 
 // ProbeFrame builds an RFC 5227 probe (sender address unspecified).
 func ProbeFrame(srcMAC net.HardwareAddr, target netip.Addr) []byte {
-	return ARPFrame(srcMAC, opRequest, netip.AddrFrom4([4]byte{}), nil, target)
+	return ARPFrame(srcMAC, arp.OpRequest, netip.AddrFrom4([4]byte{}), nil, target)
 }
 
 // Hosts enumerates the usable host addresses of a prefix, refusing
@@ -138,10 +134,10 @@ func Hosts(p netip.Prefix) ([]netip.Addr, error) {
 // not Ethernet/IPv4 ARP with a request or reply opcode. The sender MAC
 // is copied out of the reused receive buffer.
 func parseARP(b []byte) (Reply, bool) {
-	if len(b) < frameLen || binary.BigEndian.Uint16(b[12:]) != etherTypeARP {
+	if len(b) < frameLen || binary.BigEndian.Uint16(b[12:]) != ethernet.EtherTypeARP {
 		return Reply{}, false
 	}
-	p, err := arp.Parse(b[ethernetHeaderLen:])
+	p, err := arp.Parse(b[ethernet.HeaderLen:])
 	if err != nil {
 		return Reply{}, false
 	}

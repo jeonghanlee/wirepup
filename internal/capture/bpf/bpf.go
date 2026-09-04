@@ -6,7 +6,11 @@
 // tagged frames as well. IPv6 extension headers are not followed.
 package bpf
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/jeonghanlee/wirepup/internal/protocol/ethernet"
+)
 
 // Instruction is one classic BPF instruction (struct sock_filter).
 type Instruction struct {
@@ -39,8 +43,6 @@ const (
 	relSrcPort     = 14 // X + 14: transport header start after the IPv4 header
 	relDstPort     = 16
 	ipv4FragMask   = 0x1fff
-	etherTypeIPv4  = 0x0800
-	etherTypeIPv6  = 0x86dd
 
 	// AcceptLength is the byte count returned for an accepted frame; the
 	// kernel truncates it to the real frame length.
@@ -107,9 +109,9 @@ func blocksFor(r Rule) ([][]pending, error) {
 	switch r.EtherType {
 	case 0:
 		out = append(out, ipv4Block(r), ipv6Block(r))
-	case etherTypeIPv4:
+	case ethernet.EtherTypeIPv4:
 		out = append(out, ipv4Block(r))
-	case etherTypeIPv6:
+	case ethernet.EtherTypeIPv6:
 		out = append(out, ipv6Block(r))
 	default:
 		return nil, fmt.Errorf("bpf: transport rule needs EtherType IPv4, IPv6, or none")
@@ -120,7 +122,7 @@ func blocksFor(r Rule) ([][]pending, error) {
 func ipv4Block(r Rule) []pending {
 	b := []pending{
 		{code: OpLdHalfAbs, k: offEtherType},
-		{code: OpJeqK, jt: 2, jf: targetNext, k: etherTypeIPv4},
+		{code: OpJeqK, jt: 2, jf: targetNext, k: uint32(ethernet.EtherTypeIPv4)},
 	}
 	if r.IPProto != 0 {
 		next := len(b) + 2
@@ -148,7 +150,7 @@ func ipv4Block(r Rule) []pending {
 func ipv6Block(r Rule) []pending {
 	b := []pending{
 		{code: OpLdHalfAbs, k: offEtherType},
-		{code: OpJeqK, jt: 2, jf: targetNext, k: etherTypeIPv6},
+		{code: OpJeqK, jt: 2, jf: targetNext, k: uint32(ethernet.EtherTypeIPv6)},
 	}
 	if r.IPProto != 0 {
 		next := len(b) + 2

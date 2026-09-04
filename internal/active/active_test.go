@@ -62,11 +62,11 @@ func TestConflictDetection(t *testing.T) {
 		frame []byte
 		want  bool
 	}{
-		{ARPFrame(other, opReply, target, self, netip.MustParseAddr("0.0.0.0")), true},
-		{ARPFrame(other, opRequest, target, nil, target), true},
+		{ARPFrame(other, arp.OpReply, target, self, netip.MustParseAddr("0.0.0.0")), true},
+		{ARPFrame(other, arp.OpRequest, target, nil, target), true},
 		{ProbeFrame(other, target), true},
 		{ProbeFrame(self, target), false},
-		{ARPFrame(other, opRequest, netip.MustParseAddr("192.168.1.9"), nil, netip.MustParseAddr("192.168.1.1")), false},
+		{ARPFrame(other, arp.OpRequest, netip.MustParseAddr("192.168.1.9"), nil, netip.MustParseAddr("192.168.1.1")), false},
 	}
 	for i, c := range cases {
 		r, ok := parseARP(c.frame)
