@@ -65,7 +65,11 @@
           "source": "../../testdata/pcap/ca-duplicate-servers.pcap",
           "packet_id": 3
         }
-      ]
+      ],
+      "data": {
+        "pv": "DUP:PV",
+        "servers": "10.20.4.31:5064,10.20.4.32:5064"
+      }
     }
   ],
   "recommended": [],

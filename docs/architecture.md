@@ -310,6 +310,18 @@ weak_hint
 
 The definitions are in ADR-0008.
 
+A kernel filter (`--protocol`) narrows what reaches the decoder; it never
+identifies a protocol. Where a protocol learns its ports on the wire (CA
+and PVA server TCP ports), the kernel rule admits the whole transport and
+the decoder applies the hint. The commands that apply a kernel filter and
+build a device table (discover, also reached by `read --devices`; diagnose,
+also reached by `epics diagnose`; and tui) ingest a packet only when at
+least one of its observations belongs to the requested protocol set
+(`wantPacket` in `cmd/wirepup/filters.go`, beside the rule table
+`protocolFilters`), so a wider kernel rule does not widen their inventory.
+`epics find` builds a table without this gate: it applies no kernel filter
+and narrows its report by PV name instead.
+
 ## 14. Output architecture
 
 Human CLI and JSON should be separate renderers over common result models.

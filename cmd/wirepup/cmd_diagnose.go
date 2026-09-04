@@ -56,7 +56,7 @@ func runDiagnose(ctx context.Context, e *env, args []string) int {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitUsage
 	}
-	prog, _, err := filterFor(g.protocols)
+	prog, display, err := filterFor(g.protocols)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitCodeFor(err)
@@ -90,17 +90,16 @@ func runDiagnose(ctx context.Context, e *env, args []string) int {
 			last = obs[0].Ref().Timestamp
 		}
 		mu.Unlock()
-		table.Apply(obs)
+		if wantPacket(obs, display) {
+			table.Apply(obs)
+		}
 	})
 	reportStats(e, &g, ds, cs)
 	if runErr != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", runErr)
 		return exitCodeFor(runErr)
 	}
-	at := time.Now()
-	if g.pcap != "" && !last.IsZero() {
-		at = last
-	}
+	at := reportTime(&g, last)
 	report := diagnose.RunAll(dctx, table, target, diagnose.Options{EPICSOnly: epicsOnly, End: at})
 	doc := output.DiagnosisFrom(sourceNames(srcs), at, report)
 	if g.json {

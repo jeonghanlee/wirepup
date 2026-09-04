@@ -1,7 +1,7 @@
 {
   "schema": "wirepup/diagnosis/1",
   "source": "../../testdata/pcap/ca-search-no-response.pcap",
-  "interface": "",
+  "interface": "capture",
   "target_observed": false,
   "generated_at": "2026-01-01T00:00:02Z",
   "observed": [
@@ -22,14 +22,19 @@
   ],
   "inferred": [
     {
-      "code": "ca-no-answer",
+      "code": "ca-search-no-response",
       "text": "no response observed for the search from 10.20.4.88; the PV may still exist on a server whose reply did not cross this interface",
       "evidence": [
         {
           "source": "../../testdata/pcap/ca-search-no-response.pcap",
           "packet_id": 1
         }
-      ]
+      ],
+      "data": {
+        "client": "10.20.4.88",
+        "count": "3",
+        "pv": "MISSING:PV"
+      }
     }
   ],
   "recommended": [],

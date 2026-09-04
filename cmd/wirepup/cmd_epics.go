@@ -123,6 +123,13 @@ func runEPICSFind(ctx context.Context, e *env, args []string) int {
 		fmt.Fprintf(e.stderr, "wirepup: %v: a PV name is required\n", errUsage)
 		return exitUsage
 	}
+	// find observes CA and PVA together and selects its transmit side
+	// with --search, so --protocol is not applied; its value is still
+	// validated like on every other command.
+	if _, _, err := filterFor(g.protocols); err != nil {
+		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
+		return exitCodeFor(err)
+	}
 	report := diagnose.Report{Interface: g.iface}
 	at := time.Now()
 	if g.pcap != "" || g.iface != "" {
@@ -130,10 +137,8 @@ func runEPICSFind(ctx context.Context, e *env, args []string) int {
 		if code != exitOK {
 			return code
 		}
-		if g.pcap != "" && !last.IsZero() {
-			at = last
-		}
-		report = passiveFindReport(table, pv, g.iface)
+		at = reportTime(&g, last)
+		report = passiveFindReport(table, pv, findInterface(&g))
 	} else if !activeSearch {
 		fmt.Fprintf(e.stderr, "wirepup: %v: epics find needs -i, --pcap, or --active\n", errUsage)
 		return exitUsage
@@ -187,7 +192,8 @@ func runEPICSFind(ctx context.Context, e *env, args []string) int {
 			report.Observed = append(report.Observed, diagnose.Finding{Code: "ca-not-found", Text: fmt.Sprintf("CA %s replied not found for %s", r.From, pv)})
 		}
 		if len(res.Responses) > 1 {
-			report.Inferred = append(report.Inferred, diagnose.Finding{Code: "ca-multiple-servers", Text: fmt.Sprintf("%d CA servers claim %s; a client would connect to whichever answered first", len(res.Responses), pv)})
+			servers := joinServers(len(res.Responses), func(i int) string { return fmt.Sprintf("%s:%d", res.Responses[i].ServerIP, res.Responses[i].TCPPort) })
+			report.Inferred = append(report.Inferred, diagnose.Finding{Code: diagnose.CodeCAMultipleServers, Text: fmt.Sprintf("%d CA servers claim %s; a client would connect to whichever answered first", len(res.Responses), pv), Data: map[string]string{"pv": pv, "servers": servers}})
 		}
 	}
 	if len(pvaDests) > 0 {
@@ -204,7 +210,11 @@ func runEPICSFind(ctx context.Context, e *env, args []string) int {
 			report.Observed = append(report.Observed, diagnose.Finding{Code: "pva-not-found", Text: fmt.Sprintf("PVA %s (guid %s) replied not found for %s", r.From, r.GUID, pv)})
 		}
 		if len(res.Responses) > 1 {
-			report.Inferred = append(report.Inferred, diagnose.Finding{Code: "pva-multiple-servers", Text: fmt.Sprintf("%d PVA servers claim %s", len(res.Responses), pv)})
+			servers := joinServers(len(res.Responses), func(i int) string {
+				r := res.Responses[i]
+				return fmt.Sprintf("%s:%d (guid %s)", r.ServerAddr, r.ServerPort, r.GUID)
+			})
+			report.Inferred = append(report.Inferred, diagnose.Finding{Code: diagnose.CodePVAMultipleServers, Text: fmt.Sprintf("%d PVA servers claim %s", len(res.Responses), pv), Data: map[string]string{"pv": pv, "servers": servers}})
 		}
 	}
 	if answers == 0 {
@@ -221,12 +231,32 @@ func runEPICSFind(ctx context.Context, e *env, args []string) int {
 	return exitOK
 }
 
-func joinDests(ds []netip.AddrPort) string {
+func joinDests(ds []active.Destination) string {
 	var names []string
 	for _, d := range ds {
-		names = append(names, d.String())
+		names = append(names, d.AddrPort.String())
 	}
 	return strings.Join(names, ", ")
+}
+
+// joinServers builds the "servers" data value of a multiple-servers
+// finding from n endpoints, in the comma-joined form the rules use.
+func joinServers(n int, endpoint func(int) string) string {
+	names := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		names = append(names, endpoint(i))
+	}
+	return strings.Join(names, ",")
+}
+
+// findInterface is the interface of a passive find report: the capture
+// interface, or "capture" when a file was replayed, the same name
+// diagnose reports for its local context.
+func findInterface(g *globalFlags) string {
+	if g.pcap != "" {
+		return "capture"
+	}
+	return g.iface
 }
 
 // runEPICSDiagnose is diagnose restricted to the EPICS rules.
@@ -271,21 +301,20 @@ func findWindow(ctx context.Context, e *env, g *globalFlags) (*device.Table, tim
 // passiveFindReport lists what was seen for one PV name.
 func passiveFindReport(table *device.Table, pv, iface string) diagnose.Report {
 	r := diagnose.Report{Interface: iface}
-	answered := 0
 	for _, s := range table.CASearches() {
 		if s.PV != pv {
 			continue
 		}
 		r.Observed = append(r.Observed, diagnose.Finding{Code: "ca-search-seen", Text: fmt.Sprintf("CA search for %s from %s:%d (x%d, id %d)", pv, s.ClientIP, s.ClientPort, s.Count, s.ID), Evidence: []diagnose.Ref{s.Ref}, Data: map[string]string{"client": s.ClientIP.String(), "count": fmt.Sprint(s.Count)}})
 		for _, a := range s.Responses {
-			answered++
 			r.Observed = append(r.Observed, diagnose.Finding{Code: "ca-search-answer", Text: fmt.Sprintf("server %s answered for %s: TCP port %d", a.ServerIP, pv, a.TCPPort), Evidence: []diagnose.Ref{a.Ref}, Data: map[string]string{"server": a.ServerIP.String(), "tcp_port": fmt.Sprint(a.TCPPort)}})
 		}
 		if len(s.Responses) == 0 {
-			r.Inferred = append(r.Inferred, diagnose.Finding{Code: "ca-no-answer", Text: fmt.Sprintf("no response observed for the search from %s; the PV may still exist on a server whose reply did not cross this interface", s.ClientIP), Evidence: []diagnose.Ref{s.Ref}})
+			r.Inferred = append(r.Inferred, diagnose.Finding{Code: diagnose.CodeCASearchUnanswered, Text: fmt.Sprintf("no response observed for the search from %s; the PV may still exist on a server whose reply did not cross this interface", s.ClientIP), Evidence: []diagnose.Ref{s.Ref}, Data: map[string]string{"pv": pv, "client": s.ClientIP.String(), "count": fmt.Sprint(s.Count)}})
 		}
 		if len(s.Responses) > 1 {
-			r.Inferred = append(r.Inferred, diagnose.Finding{Code: "ca-multiple-servers", Text: fmt.Sprintf("%d servers answered for %s", len(s.Responses), pv), Evidence: []diagnose.Ref{s.Ref}})
+			servers := joinServers(len(s.Responses), func(i int) string { return fmt.Sprintf("%s:%d", s.Responses[i].ServerIP, s.Responses[i].TCPPort) })
+			r.Inferred = append(r.Inferred, diagnose.Finding{Code: diagnose.CodeCAMultipleServers, Text: fmt.Sprintf("%d servers answered for %s", len(s.Responses), pv), Evidence: []diagnose.Ref{s.Ref}, Data: map[string]string{"pv": pv, "servers": servers}})
 		}
 	}
 	for _, srv := range table.CAServers() {
@@ -301,14 +330,17 @@ func passiveFindReport(table *device.Table, pv, iface string) diagnose.Report {
 		}
 		r.Observed = append(r.Observed, diagnose.Finding{Code: "pva-search-seen", Text: fmt.Sprintf("PVA search for %s from %s:%d (x%d, seq %d)", pv, s.ClientIP, s.ClientPort, s.Count, s.SequenceID), Evidence: []diagnose.Ref{s.Ref}, Data: map[string]string{"client": s.ClientIP.String(), "count": fmt.Sprint(s.Count)}})
 		for _, a := range s.Responses {
-			answered++
 			r.Observed = append(r.Observed, diagnose.Finding{Code: "pva-search-answer", Text: fmt.Sprintf("PVA server %s answered for %s: TCP port %d guid %s", a.ServerAddr, pv, a.ServerPort, a.GUID), Evidence: []diagnose.Ref{a.Ref}, Data: map[string]string{"server": a.ServerAddr.String(), "tcp_port": fmt.Sprint(a.ServerPort), "guid": a.GUID}})
 		}
 		if len(s.Responses) == 0 {
-			r.Inferred = append(r.Inferred, diagnose.Finding{Code: "pva-no-answer", Text: fmt.Sprintf("no PVA response observed for the search from %s; the PV may still exist on a server whose reply did not cross this interface", s.ClientIP), Evidence: []diagnose.Ref{s.Ref}})
+			r.Inferred = append(r.Inferred, diagnose.Finding{Code: diagnose.CodePVASearchUnanswered, Text: fmt.Sprintf("no PVA response observed for the search from %s; the PV may still exist on a server whose reply did not cross this interface", s.ClientIP), Evidence: []diagnose.Ref{s.Ref}, Data: map[string]string{"pv": pv, "client": s.ClientIP.String(), "count": fmt.Sprint(s.Count)}})
 		}
 		if len(s.Responses) > 1 {
-			r.Inferred = append(r.Inferred, diagnose.Finding{Code: "pva-multiple-servers", Text: fmt.Sprintf("%d PVA servers answered for %s", len(s.Responses), pv), Evidence: []diagnose.Ref{s.Ref}})
+			servers := joinServers(len(s.Responses), func(i int) string {
+				a := s.Responses[i]
+				return fmt.Sprintf("%s:%d (guid %s)", a.ServerAddr, a.ServerPort, a.GUID)
+			})
+			r.Inferred = append(r.Inferred, diagnose.Finding{Code: diagnose.CodePVAMultipleServers, Text: fmt.Sprintf("%d PVA servers answered for %s", len(s.Responses), pv), Evidence: []diagnose.Ref{s.Ref}, Data: map[string]string{"pv": pv, "servers": servers}})
 		}
 	}
 	for _, srv := range table.PVAServers() {
@@ -321,14 +353,24 @@ func passiveFindReport(table *device.Table, pv, iface string) diagnose.Report {
 	if len(r.Observed) == 0 {
 		r.Inferred = append(r.Inferred, diagnose.Finding{Code: "nothing-seen", Text: fmt.Sprintf("nothing about %s crossed this interface during the window; nothing can be said about the PV from passive observation alone", pv)})
 	}
-	_ = answered
 	return r
 }
 
 // searchDestinations resolves --to into per-protocol destination lists.
 // An address without a port gets each protocol's default port; an
-// explicit port is used as given for every selected protocol.
-func searchDestinations(g *globalFlags, to string, protos map[string]bool) (caDests, pvaDests []netip.AddrPort, err error) {
+// explicit port is used as given for every selected protocol. Every
+// destination is classified as broadcast or unicast against the
+// interface's prefixes when -i is given; without an interface only the
+// limited broadcast and multicast count as broadcast.
+func searchDestinations(g *globalFlags, to string, protos map[string]bool) (caDests, pvaDests []active.Destination, err error) {
+	var prefixes []netip.Prefix
+	if g.iface != "" {
+		ifc, err := interfaces.ByName(g.iface)
+		if err != nil {
+			return nil, nil, err
+		}
+		prefixes = ifc.IPv4
+	}
 	var addrs []netip.Addr
 	var explicit []netip.AddrPort
 	for _, s := range strings.Split(to, ",") {
@@ -350,27 +392,30 @@ func searchDestinations(g *globalFlags, to string, protos map[string]bool) (caDe
 		if g.iface == "" {
 			return nil, nil, fmt.Errorf("%w: --active needs --to <host[:port],...> or -i <interface> for its broadcast addresses", errUsage)
 		}
-		ifc, err := interfaces.ByName(g.iface)
-		if err != nil {
-			return nil, nil, err
-		}
-		for _, ap := range active.BroadcastDestinations(ifc.IPv4, 0) {
-			addrs = append(addrs, ap.Addr())
+		for _, d := range active.BroadcastDestinations(prefixes, 0) {
+			addrs = append(addrs, d.AddrPort.Addr())
 		}
 		if len(addrs) == 0 {
 			return nil, nil, fmt.Errorf("%w: %s has no IPv4 subnet to broadcast on; use --to", errUsage, g.iface)
 		}
 	}
+	dest := func(ap netip.AddrPort) active.Destination {
+		return active.Destination{AddrPort: ap, Broadcast: active.IsBroadcast(ap.Addr(), prefixes)}
+	}
 	if protos["ca"] {
-		caDests = append(caDests, explicit...)
+		for _, ap := range explicit {
+			caDests = append(caDests, dest(ap))
+		}
 		for _, a := range addrs {
-			caDests = append(caDests, netip.AddrPortFrom(a, ca.DefaultServerPort))
+			caDests = append(caDests, dest(netip.AddrPortFrom(a, ca.DefaultServerPort)))
 		}
 	}
 	if protos["pva"] {
-		pvaDests = append(pvaDests, explicit...)
+		for _, ap := range explicit {
+			pvaDests = append(pvaDests, dest(ap))
+		}
 		for _, a := range addrs {
-			pvaDests = append(pvaDests, netip.AddrPortFrom(a, pva.DefaultUDPPort))
+			pvaDests = append(pvaDests, dest(netip.AddrPortFrom(a, pva.DefaultUDPPort)))
 		}
 	}
 	return caDests, pvaDests, nil

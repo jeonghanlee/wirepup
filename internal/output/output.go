@@ -26,6 +26,16 @@ import (
 	"github.com/jeonghanlee/wirepup/internal/protocol/tcp"
 )
 
+// Change values of a device event as rendered; they pass through from
+// device.Event unchanged, and the renderers compare against these so
+// that they depend on this package only.
+const (
+	ChangeNewDevice   = device.ChangeNewDevice
+	ChangeUpdate      = device.ChangeUpdate
+	ChangeNewNeighbor = device.ChangeNewNeighbor
+	ChangeConflict    = device.ChangeConflict
+)
+
 // Schema identifiers; the major number changes only on a breaking change.
 const (
 	SchemaInterfaces  = "wirepup/interfaces/1"
@@ -796,21 +806,24 @@ func DeviceFrom(d device.Device) Device {
 }
 
 // primaryAddress picks the strongest claim, most recent on ties, and
-// never a mere probe.
+// never a mere probe: a probe ranks like a sighting, so it is skipped
+// before ranking.
 func primaryAddress(as []device.Address) string {
-	rank := map[string]int{device.StateSeen: 1, device.StateObserved: 2, device.StateClaimed: 3, device.StateLeased: 3}
-	best := -1
+	best := 0
 	var bestAddr device.Address
 	for _, a := range as {
-		r, ok := rank[a.State]
-		if !ok {
+		if a.State == device.StateProbing {
+			continue
+		}
+		r := device.Rank(a.State)
+		if r == 0 {
 			continue
 		}
 		if r > best || (r == best && a.LastSeen.After(bestAddr.LastSeen)) {
 			best, bestAddr = r, a
 		}
 	}
-	if best < 0 {
+	if best == 0 {
 		return ""
 	}
 	return bestAddr.Addr.String()

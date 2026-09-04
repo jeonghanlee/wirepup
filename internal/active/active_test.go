@@ -80,6 +80,9 @@ func TestConflictDetection(t *testing.T) {
 	if _, ok := parseARP([]byte{1, 2, 3}); ok {
 		t.Fatal("short frame parsed")
 	}
+	if _, ok := parseARP(ARPFrame(other, 3, target, nil, target)); ok {
+		t.Fatal("unknown ARP opcode parsed")
+	}
 }
 
 func TestPlanString(t *testing.T) {

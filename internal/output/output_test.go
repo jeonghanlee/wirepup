@@ -2,14 +2,31 @@ package output
 
 import (
 	"encoding/json"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/jeonghanlee/wirepup/internal/device"
 	"github.com/jeonghanlee/wirepup/internal/observation"
 	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
 	"github.com/jeonghanlee/wirepup/internal/protocol/lldp"
 )
+
+func TestPrimaryAddressSkipsProbe(t *testing.T) {
+	probe := device.Address{Addr: netip.MustParseAddr("10.0.0.5"), State: device.StateProbing, LastSeen: time.Unix(20, 0)}
+	seen := device.Address{Addr: netip.MustParseAddr("10.0.0.6"), State: device.StateSeen, LastSeen: time.Unix(10, 0)}
+	claimed := device.Address{Addr: netip.MustParseAddr("10.0.0.7"), State: device.StateClaimed, LastSeen: time.Unix(5, 0)}
+	if got := primaryAddress([]device.Address{probe}); got != "" {
+		t.Fatalf("a probe became the primary address: %q", got)
+	}
+	if got := primaryAddress([]device.Address{probe, seen}); got != "10.0.0.6" {
+		t.Fatalf("primary %q, want the sighting over the probe", got)
+	}
+	if got := primaryAddress([]device.Address{seen, claimed}); got != "10.0.0.7" {
+		t.Fatalf("primary %q, want the stronger claim", got)
+	}
+}
 
 func TestEventFromARP(t *testing.T) {
 	ev := observation.Evidence{Timestamp: time.Unix(0, 0).UTC(), Source: "enp3s0", Interface: "enp3s0", PacketID: 4, Protocol: "arp", Confidence: observation.Confirmed}

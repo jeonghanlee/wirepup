@@ -30,9 +30,7 @@ func TestMACBeforeIPThenIPLater(t *testing.T) {
 
 func TestAutoIPThenDHCPKeepsHistory(t *testing.T) {
 	tbl := New(Options{})
-	bcast := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 	ack := ipv4UDPFrame(serverMAC, clientMAC, [4]byte{10, 20, 30, 1}, [4]byte{10, 20, 30, 42}, 67, 68, dhcpMsg(2, dhcpv4.ACK, 9, [4]byte{10, 20, 30, 42}, []byte{54, 4, 10, 20, 30, 1}))
-	_ = bcast
 	run(t, tbl, arpFrame("0080f4123456", "00000000", "a9fe161f"), arpFrame("0080f4123456", "a9fe161f", "a9fe161f"), ack)
 	d := tbl.Devices()[0]
 	if len(d.IPv4) != 2 || d.IPv4[0].Addr.String() != "169.254.22.31" || d.IPv4[0].State != StateClaimed || d.IPv4[1].Addr.String() != "10.20.30.42" || d.IPv4[1].State != StateLeased {

@@ -5,6 +5,13 @@ import (
 	"sort"
 
 	"github.com/jeonghanlee/wirepup/internal/capture/bpf"
+	"github.com/jeonghanlee/wirepup/internal/epics/ca"
+	"github.com/jeonghanlee/wirepup/internal/epics/pva"
+	"github.com/jeonghanlee/wirepup/internal/observation"
+	"github.com/jeonghanlee/wirepup/internal/protocol/dhcpv4"
+	"github.com/jeonghanlee/wirepup/internal/protocol/ethernet"
+	"github.com/jeonghanlee/wirepup/internal/protocol/ipv4"
+	"github.com/jeonghanlee/wirepup/internal/protocol/ipv6"
 )
 
 // protocolFilter maps a --protocol name to the kernel filter rules that
@@ -14,28 +21,38 @@ type protocolFilter struct {
 	displays []string
 }
 
-// Ethernet and transport constants used by the filter table.
-const (
-	etherTypeARP  = 0x0806
-	etherTypeIPv4 = 0x0800
-	etherTypeIPv6 = 0x86dd
-	etherTypeLLDP = 0x88cc
-	ipProtoUDP    = 17
-	ipProtoTCP    = 6
-	ipProtoICMPv6 = 58
-)
-
 var protocolFilters = map[string]protocolFilter{
 	"frame": {displays: []string{"ethernet"}},
-	"arp":   {rules: []bpf.Rule{{EtherType: etherTypeARP}}, displays: []string{"arp"}},
-	"lldp":  {rules: []bpf.Rule{{EtherType: etherTypeLLDP}}, displays: []string{"lldp"}},
-	"ipv4":  {rules: []bpf.Rule{{EtherType: etherTypeIPv4}}, displays: []string{"ipv4"}},
-	"dhcp":  {rules: []bpf.Rule{{EtherType: etherTypeIPv4, IPProto: ipProtoUDP, Port: 67}, {EtherType: etherTypeIPv4, IPProto: ipProtoUDP, Port: 68}}, displays: []string{"dhcp"}},
-	"ipv6":  {rules: []bpf.Rule{{EtherType: etherTypeIPv6}}, displays: []string{"ipv6"}},
-	"ndp":   {rules: []bpf.Rule{{EtherType: etherTypeIPv6, IPProto: ipProtoICMPv6}}, displays: []string{"icmpv6"}},
-	"tcp":   {rules: []bpf.Rule{{EtherType: etherTypeIPv4, IPProto: ipProtoTCP}}, displays: []string{"tcp"}},
-	"ca":    {rules: []bpf.Rule{{EtherType: etherTypeIPv4, IPProto: ipProtoUDP, Port: 5064}, {EtherType: etherTypeIPv4, IPProto: ipProtoUDP, Port: 5065}, {EtherType: etherTypeIPv4, IPProto: ipProtoTCP, Port: 5064}}, displays: []string{"epics.ca"}},
-	"pva":   {rules: []bpf.Rule{{EtherType: etherTypeIPv4, IPProto: ipProtoUDP, Port: 5076}, {EtherType: etherTypeIPv4, IPProto: ipProtoTCP, Port: 5075}}, displays: []string{"epics.pva"}},
+	"arp":   {rules: []bpf.Rule{{EtherType: ethernet.EtherTypeARP}}, displays: []string{"arp"}},
+	"lldp":  {rules: []bpf.Rule{{EtherType: ethernet.EtherTypeLLDP}}, displays: []string{"lldp"}},
+	"ipv4":  {rules: []bpf.Rule{{EtherType: ethernet.EtherTypeIPv4}}, displays: []string{"ipv4"}},
+	"dhcp":  {rules: []bpf.Rule{{EtherType: ethernet.EtherTypeIPv4, IPProto: ipv4.ProtoUDP, Port: dhcpv4.ServerPort}, {EtherType: ethernet.EtherTypeIPv4, IPProto: ipv4.ProtoUDP, Port: dhcpv4.ClientPort}}, displays: []string{"dhcp"}},
+	"ipv6":  {rules: []bpf.Rule{{EtherType: ethernet.EtherTypeIPv6}}, displays: []string{"ipv6"}},
+	"ndp":   {rules: []bpf.Rule{{EtherType: ethernet.EtherTypeIPv6, IPProto: ipv6.NextICMPv6}}, displays: []string{"icmpv6"}},
+	"tcp":   {rules: []bpf.Rule{{EtherType: ethernet.EtherTypeIPv4, IPProto: ipv4.ProtoTCP}}, displays: []string{"tcp"}},
+	// A CA or PVA server advertises its TCP port in search responses and
+	// beacons, so the kernel cannot know it in advance: the rules admit
+	// the UDP search and beacon ports and every IPv4 TCP segment, and the
+	// decoder applies the learned port. wantPacket keeps the wider rule
+	// from widening the device table.
+	"ca":  {rules: []bpf.Rule{{EtherType: ethernet.EtherTypeIPv4, IPProto: ipv4.ProtoUDP, Port: ca.DefaultServerPort}, {EtherType: ethernet.EtherTypeIPv4, IPProto: ipv4.ProtoUDP, Port: ca.DefaultRepeaterPort}, {EtherType: ethernet.EtherTypeIPv4, IPProto: ipv4.ProtoTCP}}, displays: []string{"epics.ca"}},
+	"pva": {rules: []bpf.Rule{{EtherType: ethernet.EtherTypeIPv4, IPProto: ipv4.ProtoUDP, Port: pva.DefaultUDPPort}, {EtherType: ethernet.EtherTypeIPv4, IPProto: ipv4.ProtoTCP}}, displays: []string{"epics.pva"}},
+}
+
+// wantPacket applies the display filter to one packet's observations:
+// the device table ingests a packet only when one of its observations
+// belongs to a requested protocol, so a kernel rule wider than the
+// request never widens the inventory. A nil display set admits all.
+func wantPacket(obs []observation.Observation, display map[string]bool) bool {
+	if display == nil {
+		return true
+	}
+	for _, o := range obs {
+		if display[o.Ref().Protocol] {
+			return true
+		}
+	}
+	return false
 }
 
 // hiddenProtocols are shown only in verbose mode or when requested.

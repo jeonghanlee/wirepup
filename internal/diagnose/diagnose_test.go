@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jeonghanlee/wirepup/internal/capture"
 	"github.com/jeonghanlee/wirepup/internal/decode"
 	"github.com/jeonghanlee/wirepup/internal/device"
 	"github.com/jeonghanlee/wirepup/internal/fixtures"
@@ -125,5 +124,4 @@ func TestProbeOnlyIsNotAClaim(t *testing.T) {
 	if len(r.Inferred) != 0 {
 		t.Fatalf("a probe produced an inference: %+v", r.Inferred)
 	}
-	_ = capture.LinkTypeEthernet
 }

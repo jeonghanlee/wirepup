@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"net/netip"
+	"strconv"
 
 	"github.com/jeonghanlee/wirepup/internal/observation"
 )
@@ -123,20 +124,6 @@ func ProtocolName(p uint8) string {
 	case ProtoICMPv6:
 		return "icmpv6"
 	default:
-		return "proto-" + itoa(int(p))
+		return "proto-" + strconv.Itoa(int(p))
 	}
-}
-
-func itoa(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	var b [4]byte
-	n := len(b)
-	for i > 0 {
-		n--
-		b[n] = byte('0' + i%10)
-		i /= 10
-	}
-	return string(b[n:])
 }

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"strconv"
 	"strings"
 
 	"github.com/jeonghanlee/wirepup/internal/observation"
@@ -227,27 +228,13 @@ func clientID(v []byte) string {
 	const hexdigits = "0123456789abcdef"
 	var sb strings.Builder
 	sb.WriteString("type")
-	sb.WriteString(itoa(int(v[0])))
+	sb.WriteString(strconv.Itoa(int(v[0])))
 	sb.WriteString(":")
 	for _, c := range v[1:] {
 		sb.WriteByte(hexdigits[c>>4])
 		sb.WriteByte(hexdigits[c&0x0f])
 	}
 	return sb.String()
-}
-
-func itoa(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	var b [4]byte
-	n := len(b)
-	for i > 0 {
-		n--
-		b[n] = byte('0' + i%10)
-		i /= 10
-	}
-	return string(b[n:])
 }
 
 func cString(v []byte) string {

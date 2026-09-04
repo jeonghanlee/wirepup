@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jeonghanlee/wirepup/internal/capture"
 	"github.com/jeonghanlee/wirepup/internal/capture/afpacket"
@@ -140,6 +141,15 @@ func reportStats(e *env, g *globalFlags, ds decode.Stats, cs capture.Stats) {
 	}
 	fmt.Fprintf(e.stderr, "%d packets processed (%d decoded, %d malformed), %d received by kernel, %d dropped\n",
 		ds.Packets, ds.Decoded, ds.Malformed, cs.Received, cs.Dropped)
+}
+
+// reportTime is the generation time of a report: the last packet time
+// of a capture file, so that replays reproduce, and the clock otherwise.
+func reportTime(g *globalFlags, last time.Time) time.Time {
+	if g.pcap != "" && !last.IsZero() {
+		return last
+	}
+	return time.Now()
 }
 
 // withTimeout applies the --timeout flag.

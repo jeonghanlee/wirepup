@@ -54,6 +54,12 @@ const (
 	ViaDHCPACK         = "DHCP ACK"
 	ViaDHCPServer      = "DHCP server"
 	ViaLLDP            = "LLDP"
+	// EPICS server sightings: only a server sends these.
+	ViaCASearchResponse  = "CA search response"
+	ViaCANotFound        = "CA not found"
+	ViaCABeacon          = "CA beacon"
+	ViaPVASearchResponse = "PVA search response"
+	ViaPVABeacon         = "PVA beacon"
 )
 
 // Event changes.
@@ -89,6 +95,14 @@ const (
 const maxWeakAddresses = 16
 
 var stateRank = map[string]int{StateSeen: 1, StateProbing: 1, StateObserved: 2, StateClaimed: 3, StateLeased: 3}
+
+// Rank orders address states by the strength of the claim; zero means
+// the state is unranked.
+func Rank(state string) int { return stateRank[state] }
+
+// Strong reports whether a state is a claim of the address (observed,
+// claimed, or leased) rather than a sighting or a probe.
+func Strong(state string) bool { return stateRank[state] >= stateRank[StateObserved] }
 
 // Ref points at the packet that supports a claim.
 type Ref struct {
@@ -732,6 +746,10 @@ func timelineText(via string, addr netip.Addr) string {
 		return "NDP advertisement " + addr.String()
 	case ViaNDPSolicit, ViaRouterAdvert:
 		return "IPv6 observed " + addr.String()
+	case ViaCASearchResponse, ViaCANotFound, ViaCABeacon:
+		return "CA server " + addr.String()
+	case ViaPVASearchResponse, ViaPVABeacon:
+		return "PVA server " + addr.String()
 	default:
 		return "IPv4 observed " + addr.String()
 	}

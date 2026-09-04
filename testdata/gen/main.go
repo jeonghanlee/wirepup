@@ -21,6 +21,10 @@ var pvaGUID = [12]byte{0x57, 0x69, 0x72, 0x65, 0x50, 0x75, 0x70, 0x00, 0x00, 0x0
 
 const outDir = "testdata/pcap"
 
+// pcapngFixture names the fixture also written as PCAPNG, selected by
+// name so that reordering the set cannot change which file it is.
+const pcapngFixture = "lldp-single-neighbor"
+
 type fixture struct {
 	name   string
 	frames [][]byte
@@ -124,31 +128,27 @@ func main() {
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		fail(err)
 	}
-	for _, f := range fixtureSet() {
-		for _, ext := range []string{".pcap"} {
-			path := filepath.Join(outDir, f.name+ext)
-			w, err := pcapfile.Create(path, "enp3s0", pcapfile.DefaultSnapLen)
-			if err != nil {
-				fail(err)
-			}
-			for i, frame := range f.frames {
-				if err := w.Write(fixtures.Packet(i, frame)); err != nil {
-					fail(err)
-				}
-			}
-			if err := w.Close(); err != nil {
-				fail(err)
-			}
-			fmt.Printf("%s: %d packets\n", path, len(f.frames))
-		}
+	set := fixtureSet()
+	for _, f := range set {
+		write(filepath.Join(outDir, f.name+".pcap"), f)
 	}
 	// One PCAPNG copy proves the second format end to end.
-	path := filepath.Join(outDir, "lldp-single-neighbor.pcapng")
+	for _, f := range set {
+		if f.name == pcapngFixture {
+			write(filepath.Join(outDir, f.name+".pcapng"), f)
+			return
+		}
+	}
+	fail(fmt.Errorf("fixture %q for the PCAPNG copy is not in the set", pcapngFixture))
+}
+
+// write stores one fixture in the format the path's extension selects.
+func write(path string, f fixture) {
 	w, err := pcapfile.Create(path, "enp3s0", pcapfile.DefaultSnapLen)
 	if err != nil {
 		fail(err)
 	}
-	for i, frame := range fixtureSet()[3].frames {
+	for i, frame := range f.frames {
 		if err := w.Write(fixtures.Packet(i, frame)); err != nil {
 			fail(err)
 		}
@@ -156,7 +156,7 @@ func main() {
 	if err := w.Close(); err != nil {
 		fail(err)
 	}
-	fmt.Printf("%s: %d packets\n", path, len(fixtureSet()[3].frames))
+	fmt.Printf("%s: %d packets\n", path, len(f.frames))
 }
 
 func fail(err error) {

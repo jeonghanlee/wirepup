@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"net/netip"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/jeonghanlee/wirepup/internal/epics/ca"
 	"github.com/jeonghanlee/wirepup/internal/epics/pva"
+	"github.com/jeonghanlee/wirepup/internal/observation"
 	"github.com/jeonghanlee/wirepup/internal/protocol/ethernet"
 )
 
@@ -195,8 +195,8 @@ func (t *Table) applyPVA(frame *ethernet.Observation, v pva.Observation) []Event
 		srv := t.pvaServer(v.GUID, v.ServerAddr, v.ServerPort, v.Protocol, mac, v.Timestamp, ref)
 		if dev != nil {
 			addProtocol(dev, ProtoPVAServer)
-			if v.Transport == "udp" {
-				events = append(events, t.addAddress(dev, v.Src, StateObserved, "PVA search response", "", v.Timestamp, ref)...)
+			if v.Transport == observation.TransportUDP {
+				events = append(events, t.addAddress(dev, v.Src, StateObserved, ViaPVASearchResponse, "", v.Timestamp, ref)...)
 			}
 		}
 		resp := PVAResponse{GUID: v.GUID, ServerAddr: v.ServerAddr, ServerPort: v.ServerPort, ServerMAC: mac, At: v.Timestamp, Ref: ref}
@@ -220,7 +220,7 @@ func (t *Table) applyPVA(frame *ethernet.Observation, v pva.Observation) []Event
 		srv.ChangeCount = v.ChangeCount
 		if dev != nil {
 			addProtocol(dev, ProtoPVAServer)
-			events = append(events, t.addAddress(dev, v.Src, StateObserved, "PVA beacon", "", v.Timestamp, ref)...)
+			events = append(events, t.addAddress(dev, v.Src, StateObserved, ViaPVABeacon, "", v.Timestamp, ref)...)
 		}
 	case "pva.create_channel", "pva.validation_response":
 		if dev != nil {
@@ -321,8 +321,12 @@ func (t *Table) applyCA(frame *ethernet.Observation, v ca.Observation) []Event {
 		srv := t.caServer(v.ServerIP, v.ServerPort, mac, v.Timestamp, ref)
 		if dev != nil {
 			addProtocol(dev, ProtoCAServer)
-			if v.Transport == "udp" {
-				events = append(events, t.addAddress(dev, v.Src, StateObserved, "CA "+strings.ReplaceAll(string(v.Kind())[3:], "_", " "), "", v.Timestamp, ref)...)
+			if v.Transport == observation.TransportUDP {
+				via := ViaCASearchResponse
+				if v.Kind() == "ca.not_found" {
+					via = ViaCANotFound
+				}
+				events = append(events, t.addAddress(dev, v.Src, StateObserved, via, "", v.Timestamp, ref)...)
 			}
 		}
 		resp := CAResponse{ServerIP: v.ServerIP, ServerMAC: mac, TCPPort: v.ServerPort, At: v.Timestamp, Ref: ref}
@@ -343,7 +347,7 @@ func (t *Table) applyCA(frame *ethernet.Observation, v ca.Observation) []Event {
 		srv.BeaconID = v.BeaconID
 		if dev != nil {
 			addProtocol(dev, ProtoCAServer)
-			events = append(events, t.addAddress(dev, v.Src, StateObserved, "CA beacon", "", v.Timestamp, ref)...)
+			events = append(events, t.addAddress(dev, v.Src, StateObserved, ViaCABeacon, "", v.Timestamp, ref)...)
 		}
 	case "ca.create_channel":
 		if dev != nil {

@@ -29,7 +29,7 @@ func runDiscover(ctx context.Context, e *env, args []string) int {
 
 // discoverWith runs device discovery over the selected source.
 func discoverWith(ctx context.Context, e *env, g *globalFlags) int {
-	prog, _, err := filterFor(g.protocols)
+	prog, display, err := filterFor(g.protocols)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitCodeFor(err)
@@ -60,6 +60,9 @@ func discoverWith(ctx context.Context, e *env, g *globalFlags) int {
 		if len(obs) > 0 {
 			last = obs[0].Ref().Timestamp
 		}
+		if !wantPacket(obs, display) {
+			return
+		}
 		for _, ev := range table.Apply(obs) {
 			de := output.DeviceEventFrom(ev)
 			if g.json {
@@ -71,10 +74,7 @@ func discoverWith(ctx context.Context, e *env, g *globalFlags) int {
 	}
 	ds, cs, runErr := runSource(ctx, src, show)
 	reportStats(e, g, ds, cs)
-	at := time.Now()
-	if g.pcap != "" && !last.IsZero() {
-		at = last
-	}
+	at := reportTime(g, last)
 	doc := output.DevicesFrom(src.Name(), at, ouiPath, table)
 	if g.json {
 		jsonout.Document(e.stdout, doc)

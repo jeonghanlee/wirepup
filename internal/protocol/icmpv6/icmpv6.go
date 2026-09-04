@@ -10,6 +10,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"strconv"
 
 	"github.com/jeonghanlee/wirepup/internal/observation"
 )
@@ -104,7 +105,7 @@ func (m Message) TypeName() string {
 	if n, ok := typeNames[m.Type]; ok {
 		return n
 	}
-	return "type-" + itoa(int(m.Type))
+	return "type-" + strconv.Itoa(int(m.Type))
 }
 
 // IsNDP reports whether the message belongs to Neighbor Discovery.
@@ -221,18 +222,4 @@ func (o Observation) Kind() observation.Kind {
 		return KindNDP
 	}
 	return KindGeneric
-}
-
-func itoa(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	var b [4]byte
-	n := len(b)
-	for i > 0 {
-		n--
-		b[n] = byte('0' + i%10)
-		i /= 10
-	}
-	return string(b[n:])
 }

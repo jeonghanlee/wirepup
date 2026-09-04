@@ -49,7 +49,7 @@ func RunAll(ctx Context, table *device.Table, target netip.Addr, opts Options) R
 	} else {
 		r = Run(ctx, table, target)
 		r.dhcpRules(table, opts.End)
-		r.autoIPRules(table)
+		r.autoIPRules(table, opts.End)
 	}
 	r.caRules(ctx, table)
 	r.pvaRules(table)
@@ -96,11 +96,17 @@ func (r *Report) dhcpRules(table *device.Table, end time.Time) {
 	}
 }
 
-// autoIPRules links a Link-Local claim to a preceding failed DHCP exchange.
-func (r *Report) autoIPRules(table *device.Table) {
+// autoIPRules links a Link-Local claim to a preceding failed DHCP
+// exchange; an exchange counts as failed under the same grace period
+// dhcpRules applies, so the text never asserts a failure the report
+// has not found.
+func (r *Report) autoIPRules(table *device.Table, end time.Time) {
 	failed := map[string]bool{}
 	for _, x := range table.DHCPTransactions() {
 		if !x.Discover.IsZero() && x.ACK.IsZero() {
+			if !end.IsZero() && end.Sub(x.Discover) < dhcpOfferGrace {
+				continue
+			}
 			failed[x.ClientMAC] = true
 		}
 	}
@@ -152,6 +158,7 @@ func (r *Report) caRules(ctx Context, table *device.Table) {
 				Code:     CodeCAMultipleServers,
 				Text:     fmt.Sprintf("more than one CA server claims %s; clients connect to whichever answers first, so the value they see may change between runs", s.PV),
 				Evidence: refs,
+				Data:     map[string]string{"pv": s.PV, "servers": strings.Join(who, ",")},
 			})
 		}
 		if dst := searchDestinationFinding(ctx, s); dst != nil {
@@ -228,11 +235,13 @@ func (r *Report) pvaRules(table *device.Table) {
 				Code:     CodePVAMultipleServers,
 				Text:     fmt.Sprintf("PVA search for %s answered by %d servers: %s", s.PV, len(s.Responses), strings.Join(who, ", ")),
 				Evidence: refs,
+				Data:     map[string]string{"pv": s.PV, "servers": strings.Join(who, ",")},
 			})
 			r.Inferred = append(r.Inferred, Finding{
 				Code:     CodePVAMultipleServers,
 				Text:     fmt.Sprintf("more than one PVA server claims %s", s.PV),
 				Evidence: refs,
+				Data:     map[string]string{"pv": s.PV, "servers": strings.Join(who, ",")},
 			})
 		}
 	}

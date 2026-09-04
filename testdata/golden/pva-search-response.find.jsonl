@@ -1,7 +1,7 @@
 {
   "schema": "wirepup/diagnosis/1",
   "source": "../../testdata/pcap/pva-search-response.pcap",
-  "interface": "",
+  "interface": "capture",
   "target_observed": false,
   "generated_at": "2026-01-01T00:00:02Z",
   "observed": [

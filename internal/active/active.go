@@ -12,6 +12,8 @@ import (
 	"net"
 	"net/netip"
 	"time"
+
+	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
 )
 
 // Budget constants from the ADR-0007 amendment.
@@ -31,10 +33,11 @@ const (
 
 // Wire constants.
 const (
-	etherTypeARP = 0x0806
-	opRequest    = 1
-	opReply      = 2
-	frameLen     = 42
+	etherTypeARP      = 0x0806
+	opRequest         = 1
+	opReply           = 2
+	ethernetHeaderLen = 14
+	frameLen          = 42
 )
 
 // Errors.
@@ -48,7 +51,7 @@ type Reply struct {
 	At       time.Time
 	MAC      net.HardwareAddr
 	IP       netip.Addr
-	Kind     string // "reply", "announcement", "probe"
+	Kind     arp.Role
 	TargetIP netip.Addr
 }
 
@@ -130,32 +133,24 @@ func Hosts(p netip.Prefix) ([]netip.Addr, error) {
 	return out, nil
 }
 
-// parseARP decodes a received ARP frame into a Reply; ok is false for
-// anything that is not Ethernet/IPv4 ARP.
+// parseARP decodes a received Ethernet frame into a Reply through the
+// passive ARP parser and classifier; ok is false for anything that is
+// not Ethernet/IPv4 ARP with a request or reply opcode. The sender MAC
+// is copied out of the reused receive buffer.
 func parseARP(b []byte) (Reply, bool) {
 	if len(b) < frameLen || binary.BigEndian.Uint16(b[12:]) != etherTypeARP {
 		return Reply{}, false
 	}
-	if binary.BigEndian.Uint16(b[14:]) != 1 || binary.BigEndian.Uint16(b[16:]) != 0x0800 || b[18] != 6 || b[19] != 4 {
+	p, err := arp.Parse(b[ethernetHeaderLen:])
+	if err != nil {
 		return Reply{}, false
 	}
-	r := Reply{
-		MAC:      net.HardwareAddr(append([]byte(nil), b[22:28]...)),
-		IP:       netip.AddrFrom4([4]byte(b[28:32])),
-		TargetIP: netip.AddrFrom4([4]byte(b[38:42])),
-	}
-	op := binary.BigEndian.Uint16(b[20:])
-	switch {
-	case op == opRequest && r.IP.IsUnspecified():
-		r.Kind = "probe"
-	case r.IP == r.TargetIP:
-		r.Kind = "announcement"
-	case op == opReply:
-		r.Kind = "reply"
-	default:
-		r.Kind = "request"
-	}
-	return r, true
+	return Reply{
+		MAC:      append(net.HardwareAddr(nil), p.SenderMAC...),
+		IP:       p.SenderIP,
+		TargetIP: p.TargetIP,
+		Kind:     arp.Classify(p),
+	}, true
 }
 
 // Conflicts reports whether a heard ARP packet contradicts our claim
@@ -165,9 +160,9 @@ func Conflicts(r Reply, target netip.Addr, self net.HardwareAddr) bool {
 		return false
 	}
 	switch r.Kind {
-	case "reply", "announcement", "request":
+	case arp.RoleReply, arp.RoleAnnouncement, arp.RoleRequest:
 		return r.IP == target
-	case "probe":
+	case arp.RoleProbe:
 		return r.TargetIP == target
 	}
 	return false

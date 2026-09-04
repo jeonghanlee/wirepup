@@ -109,7 +109,7 @@ Written by `diagnose --json`, `epics diagnose --json`, `epics find --json`, `pro
 | --- | --- | --- |
 | `schema` | string | `wirepup/diagnosis/1` |
 | `source` | string | capture source; for an active command the interface, or the literal `active` when the command ran without one |
-| `interface` | string | interface the local context came from |
+| `interface` | string | interface the local context came from; `capture` when a capture file was replayed (`--pcap`) |
 | `target` | string | the address asked about, omitted otherwise |
 | `target_observed` | boolean | whether any device claimed the target |
 | `generated_at` | timestamp | when the rules ran |
@@ -135,7 +135,7 @@ Finding: `code` (stable identifier such as `same-l2-different-subnet` or `ca-sea
 | `dhcp-discover-no-offer` | `mac`, `xid` |
 | `auto-ip-fallback` | `mac`, `address` |
 | `ca-search-no-response`, `pva-search-no-response` | `pv`, `client`, `count` |
-| `ca-multiple-servers` | `pv`, `servers` |
+| `ca-multiple-servers`, `pva-multiple-servers` | `pv`, `servers` |
 | `ca-server-seen` | `server`, `tcp_port` |
 | `pva-server-seen` | `server`, `tcp_port`, `guid` |
 | `ca-search-destination-not-local` | `pv`, `destination` |

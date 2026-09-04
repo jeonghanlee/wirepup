@@ -27,7 +27,6 @@ import (
 // Active command defaults.
 const (
 	defaultConnectWindow = 5 * time.Second
-	assumedPrefixBits    = 24
 	confirmPrompt        = "Proceed? [y/N] "
 )
 
@@ -117,7 +116,7 @@ func runProbe(ctx context.Context, e *env, args []string) int {
 	for _, r := range res.Replies {
 		report.Observed = append(report.Observed, diagnose.Finding{Code: "arp-reply", Text: fmt.Sprintf("%s is-at %s", r.IP, r.MAC), Data: map[string]string{"ip": r.IP.String(), "mac": r.MAC.String()}})
 	}
-	renderReport(e, &g, g.iface, report)
+	renderReport(e, &g, activeSourceName(&g), report)
 	if err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return activeExit(err)
@@ -183,12 +182,12 @@ func runConnect(ctx context.Context, e *env, args []string) int {
 		}
 		report = diagnose.Run(dctx, table, target)
 		if !report.TargetSeen && !requested.IsValid() {
-			renderReport(e, &g, g.iface, report)
+			renderReport(e, &g, activeSourceName(&g), report)
 			fmt.Fprintf(e.stderr, "wirepup: %v; pass --address to add one anyway\n", errNotObserved)
 			return exitNotObserved
 		}
 		if report.TargetSeen && !requested.IsValid() && len(report.Recommended) == 0 {
-			renderReport(e, &g, g.iface, report)
+			renderReport(e, &g, activeSourceName(&g), report)
 			fmt.Fprintln(e.stderr, "wirepup: nothing to do: the target is inside a local subnet")
 			return exitOK
 		}
@@ -201,21 +200,21 @@ func runConnect(ctx context.Context, e *env, args []string) int {
 			}
 		}
 		if cand == "" {
-			renderReport(e, &g, g.iface, report)
+			renderReport(e, &g, activeSourceName(&g), report)
 			fmt.Fprintf(e.stderr, "wirepup: %v: no free candidate address; pass --address\n", errUnsafe)
 			return exitUnsafe
 		}
-		requested = netip.PrefixFrom(netip.MustParseAddr(cand), assumedPrefixBits)
+		requested = netip.PrefixFrom(netip.MustParseAddr(cand), diagnose.AssumedPrefixBits)
 	}
 	if err := refuseIfConfigured(dctx, requested); err != nil {
-		renderReport(e, &g, g.iface, report)
+		renderReport(e, &g, activeSourceName(&g), report)
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return exitUnsafe
 	}
 	mgr := networkcfg.New(version)
 	argv := append([]string{mgr.IPPath}, networkcfg.AddArgv(g.iface, requested)...)
 	report.Recommended = append(report.Recommended, diagnose.Finding{Code: "requested-action", Text: fmt.Sprintf("add %s to %s after an ARP probe: %s", requested, g.iface, strings.Join(argv, " ")), Data: map[string]string{"argv": strings.Join(argv, " ")}})
-	renderReport(e, &g, g.iface, report)
+	renderReport(e, &g, activeSourceName(&g), report)
 	fmt.Fprintf(e.stderr, "ACTIVE: will send %d ARP probes for %s on %s, then run: %s\n", active.ProbeCount, requested.Addr(), g.iface, strings.Join(argv, " "))
 	if err := confirm(e, &a, os.Stdin); err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
@@ -224,24 +223,24 @@ func runConnect(ctx context.Context, e *env, args []string) int {
 	probe, err := active.Probe(ctx, g.iface, requested.Addr())
 	executed := []diagnose.Finding{{Code: "arp-probe", Text: fmt.Sprintf("sent %d ARP probes for %s on %s", probe.Sent, requested.Addr(), g.iface), Data: map[string]string{"sent": fmt.Sprint(probe.Sent), "address": requested.Addr().String()}}}
 	if err != nil {
-		renderExecuted(e, &g, g.iface, executed)
+		renderExecuted(e, &g, executed)
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return activeExit(err)
 	}
 	if probe.Conflict != nil {
-		executed = append(executed, diagnose.Finding{Code: "address-in-use", Text: fmt.Sprintf("%s answered for %s (%s); address not added", probe.Conflict.MAC, requested.Addr(), probe.Conflict.Kind), Data: map[string]string{"mac": probe.Conflict.MAC.String(), "kind": probe.Conflict.Kind}})
-		renderExecuted(e, &g, g.iface, executed)
+		executed = append(executed, diagnose.Finding{Code: "address-in-use", Text: fmt.Sprintf("%s answered for %s (%s); address not added", probe.Conflict.MAC, requested.Addr(), probe.Conflict.Kind), Data: map[string]string{"mac": probe.Conflict.MAC.String(), "kind": string(probe.Conflict.Kind)}})
+		renderExecuted(e, &g, executed)
 		fmt.Fprintf(e.stderr, "wirepup: %v: %s is already in use by %s\n", errUnsafe, requested.Addr(), probe.Conflict.MAC)
 		return exitUnsafe
 	}
 	entry, err := mgr.Add(g.iface, requested)
 	if err != nil {
-		renderExecuted(e, &g, g.iface, executed)
+		renderExecuted(e, &g, executed)
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return activeExit(err)
 	}
 	executed = append(executed, diagnose.Finding{Code: "address-added", Text: fmt.Sprintf("added %s to %s (label %s), recorded in %s: %s", entry.Address, entry.Interface, dashIfEmpty(entry.Label), mgr.Path, strings.Join(entry.Argv, " ")), Data: map[string]string{"address": entry.Address.String(), "interface": entry.Interface, "label": entry.Label, "argv": strings.Join(entry.Argv, " "), "session": mgr.Path}})
-	renderExecuted(e, &g, g.iface, executed)
+	renderExecuted(e, &g, executed)
 	fmt.Fprintf(e.stderr, "Remove it later with: wirepup disconnect -i %s %s\n", entry.Interface, entry.Address)
 	return exitOK
 }
@@ -264,7 +263,7 @@ func runDisconnect(ctx context.Context, e *env, args []string) int {
 		only, err = netip.ParsePrefix(addrArg)
 		if err != nil {
 			if a, aerr := netip.ParseAddr(addrArg); aerr == nil {
-				only = netip.PrefixFrom(a, assumedPrefixBits)
+				only = netip.PrefixFrom(a, diagnose.AssumedPrefixBits)
 			} else {
 				fmt.Fprintf(e.stderr, "wirepup: %v: address %q\n", errUsage, addrArg)
 				return exitUsage
@@ -302,16 +301,17 @@ func runDisconnect(ctx context.Context, e *env, args []string) int {
 	if matched == 0 {
 		fmt.Fprintf(e.stderr, "wirepup: nothing to remove: no WirePup-created address recorded in %s\n", mgr.Path)
 		if g.json {
-			renderExecuted(e, &g, g.iface, executed)
+			renderExecuted(e, &g, executed)
 		}
 		return code
 	}
-	renderExecuted(e, &g, g.iface, executed)
+	renderExecuted(e, &g, executed)
 	return code
 }
 
 // observeWindow runs passive discovery for the timeout and returns the
-// table; it is the same pipeline diagnose uses.
+// table; it uses the same decode pipeline as diagnose, without the
+// --protocol ingest gate, so an active command takes a broad picture.
 func observeWindow(ctx context.Context, e *env, g *globalFlags) (*device.Table, int) {
 	src, err := openLive(g, nil)
 	if err != nil {
@@ -374,8 +374,21 @@ func renderReportAt(e *env, g *globalFlags, source string, r diagnose.Report, at
 	text.Diagnosis(e.stdout, doc)
 }
 
-func renderExecuted(e *env, g *globalFlags, source string, executed []diagnose.Finding) {
-	renderReport(e, g, source, diagnose.Report{Interface: source, Executed: executed})
+// activeSourceName is the source of an active command's report: the
+// interface it ran on, or the literal "active" when it ran without one.
+// A capture file is never the source of a transmission, so --pcap is
+// not consulted.
+func activeSourceName(g *globalFlags) string {
+	if g.iface != "" {
+		return g.iface
+	}
+	return "active"
+}
+
+// renderExecuted renders the findings of an executed action; the
+// interface field stays the interface name, empty when none was given.
+func renderExecuted(e *env, g *globalFlags, executed []diagnose.Finding) {
+	renderReport(e, g, activeSourceName(g), diagnose.Report{Interface: g.iface, Executed: executed})
 }
 
 func dashIfEmpty(s string) string {

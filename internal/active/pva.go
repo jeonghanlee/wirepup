@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jeonghanlee/wirepup/internal/epics/pva"
+	"github.com/jeonghanlee/wirepup/internal/observation"
 )
 
 // PVASearchResult is the outcome of one explicit PVA search.
@@ -29,7 +30,7 @@ type PVAAnswer struct {
 
 // PVASearch sends one PVA search datagram for pv to each destination
 // and collects answers for the wait period.
-func PVASearch(ctx context.Context, pv string, dests []netip.AddrPort, seq, instance int32, wait time.Duration) (PVASearchResult, error) {
+func PVASearch(ctx context.Context, pv string, dests []Destination, seq, instance int32, wait time.Duration) (PVASearchResult, error) {
 	if len(dests) == 0 {
 		return PVASearchResult{}, ErrNoDestinations
 	}
@@ -38,7 +39,7 @@ func PVASearch(ctx context.Context, pv string, dests []netip.AddrPort, seq, inst
 	}
 	res := PVASearchResult{Plan: Plan{Protocol: "PVA search", Count: len(dests), Rate: RatePerSecond}}
 	for _, d := range dests {
-		res.Plan.Targets = append(res.Plan.Targets, d.Addr())
+		res.Plan.Targets = append(res.Plan.Targets, d.AddrPort.Addr())
 	}
 	conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero})
 	if err != nil {
@@ -52,11 +53,11 @@ func PVASearch(ctx context.Context, pv string, dests []netip.AddrPort, seq, inst
 		if ctx.Err() != nil {
 			return res, ctx.Err()
 		}
-		unicast := !d.Addr().IsMulticast() && d.Addr().As4()[3] != 0xff
-		if _, err := conn.WriteToUDPAddrPort(pva.SearchDatagram(seq, instance, pv, true, unicast), d); err != nil {
-			return res, fmt.Errorf("active: send to %s: %w", d, err)
+		// The search flag states how this datagram is sent (see Destination).
+		if _, err := conn.WriteToUDPAddrPort(pva.SearchDatagram(seq, instance, pv, true, !d.Broadcast), d.AddrPort); err != nil {
+			return res, fmt.Errorf("active: send to %s: %w", d.AddrPort, err)
 		}
-		res.Sent = append(res.Sent, d)
+		res.Sent = append(res.Sent, d.AddrPort)
 		if i+1 < len(dests) {
 			time.Sleep(SendInterval)
 		}
@@ -77,7 +78,7 @@ func PVASearch(ctx context.Context, pv string, dests []netip.AddrPort, seq, inst
 			continue
 		}
 		for _, m := range msgs {
-			o := pva.Interpret(m, "udp", from.Addr().Unmap(), netip.Addr{}, from.Port(), 0)
+			o := pva.Interpret(m, observation.TransportUDP, from.Addr().Unmap(), netip.Addr{}, from.Port(), 0)
 			if o.Kind() != "pva.search_response" || o.SequenceID != seq {
 				continue
 			}

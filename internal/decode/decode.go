@@ -37,12 +37,6 @@ const (
 	ProtoPVA      = "epics.pva"
 )
 
-// Transport names in EPICS observations.
-const (
-	transportUDP = "udp"
-	transportTCP = "tcp"
-)
-
 // Ports configure the EPICS port hints (defaults unless overridden).
 type Ports struct {
 	CAServer   uint16
@@ -147,7 +141,8 @@ func (d *Decoder) Decode(pkt capture.Packet) []observation.Observation {
 	return obs
 }
 
-// decodeIPv6 emits the IPv6 observation and dispatches ICMPv6 and UDP.
+// decodeIPv6 emits the IPv6 observation and dispatches ICMPv6; EPICS
+// over IPv6 is outside V1, so UDP and TCP payloads are not decoded.
 func decodeIPv6(ev observation.Evidence, payload []byte) []observation.Observation {
 	p, err := ipv6.Parse(payload)
 	if err != nil {
@@ -261,13 +256,13 @@ func (d *Decoder) decodeUDP(ev observation.Evidence, ip ipv4.Packet, payload []b
 			obs = append(obs, o)
 		}
 	case isPort(dg, d.ports.CAServer) || isPort(dg, d.ports.CARepeater):
-		obs = append(obs, d.decodeCA(ev, transportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.Confirmed)...)
+		obs = append(obs, d.decodeCA(ev, observation.TransportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.Confirmed)...)
 	case isPort(dg, d.ports.PVAUDP):
-		obs = append(obs, d.decodePVA(ev, transportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.Confirmed)...)
+		obs = append(obs, d.decodePVA(ev, observation.TransportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.Confirmed)...)
 	case pva.Probable(dg.Payload):
-		obs = append(obs, d.decodePVA(ev, transportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.StrongHint)...)
+		obs = append(obs, d.decodePVA(ev, observation.TransportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.StrongHint)...)
 	case len(dg.Payload) >= ca.HeaderLen && ca.Probable(dg.Payload):
-		obs = append(obs, d.decodeCA(ev, transportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.StrongHint)...)
+		obs = append(obs, d.decodeCA(ev, observation.TransportUDP, ip.Src, ip.Dst, dg.SrcPort, dg.DstPort, dg.Payload, observation.StrongHint)...)
 	}
 	return obs
 }
@@ -280,7 +275,7 @@ func (d *Decoder) decodePVA(ev observation.Evidence, transport string, src, dst 
 		return nil
 	}
 	if err != nil {
-		if transport == transportUDP {
+		if transport == observation.TransportUDP {
 			return nil
 		}
 		conf = observation.StrongHint
@@ -325,9 +320,9 @@ func (d *Decoder) decodeTCP(ev observation.Evidence, src, dst netip.Addr, payloa
 		if !d.isPVATCP(seg.SrcPort) && !d.isPVATCP(seg.DstPort) {
 			conf = observation.StrongHint
 		}
-		obs = append(obs, d.decodePVA(ev, transportTCP, src, dst, seg.SrcPort, seg.DstPort, seg.Payload, conf)...)
+		obs = append(obs, d.decodePVA(ev, observation.TransportTCP, src, dst, seg.SrcPort, seg.DstPort, seg.Payload, conf)...)
 	case d.isCATCP(seg.SrcPort) || d.isCATCP(seg.DstPort):
-		obs = append(obs, d.decodeCA(ev, transportTCP, src, dst, seg.SrcPort, seg.DstPort, seg.Payload, observation.Confirmed)...)
+		obs = append(obs, d.decodeCA(ev, observation.TransportTCP, src, dst, seg.SrcPort, seg.DstPort, seg.Payload, observation.Confirmed)...)
 	}
 	return obs
 }
@@ -335,12 +330,12 @@ func (d *Decoder) decodeTCP(ev observation.Evidence, src, dst netip.Addr, payloa
 // decodeCA parses every message in the buffer. A datagram that does
 // not parse at all is not CA, whatever the port says.
 func (d *Decoder) decodeCA(ev observation.Evidence, transport string, src, dst netip.Addr, srcPort, dstPort uint16, payload []byte, conf observation.Confidence) []observation.Observation {
-	msgs, err := ca.Parse(payload, transport == transportUDP)
+	msgs, err := ca.Parse(payload, transport == observation.TransportUDP)
 	if len(msgs) == 0 {
 		return nil
 	}
 	if err != nil {
-		if transport == transportUDP {
+		if transport == observation.TransportUDP {
 			return nil
 		}
 		conf = observation.StrongHint

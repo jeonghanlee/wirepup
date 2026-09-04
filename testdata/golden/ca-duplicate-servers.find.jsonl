@@ -1,7 +1,7 @@
 {
   "schema": "wirepup/diagnosis/1",
   "source": "../../testdata/pcap/ca-duplicate-servers.pcap",
-  "interface": "",
+  "interface": "capture",
   "target_observed": false,
   "generated_at": "2026-01-01T00:00:02Z",
   "observed": [
@@ -57,7 +57,11 @@
           "source": "../../testdata/pcap/ca-duplicate-servers.pcap",
           "packet_id": 1
         }
-      ]
+      ],
+      "data": {
+        "pv": "DUP:PV",
+        "servers": "10.20.4.31:5064,10.20.4.32:5064"
+      }
     },
     {
       "code": "ca-server-claims",

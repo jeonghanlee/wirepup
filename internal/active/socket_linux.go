@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/jeonghanlee/wirepup/internal/protocol/arp"
 )
 
 // Socket errors.
@@ -166,7 +168,7 @@ func Sweep(ctx context.Context, iface string, prefix netip.Prefix) (SweepResult,
 	res := SweepResult{Plan: Plan{Interface: s.name, Protocol: "ARP request", Targets: hosts, Count: len(hosts), Rate: RatePerSecond}}
 	seen := map[string]bool{}
 	collect := func(r Reply) bool {
-		if r.Kind != "reply" || r.MAC.String() == s.mac.String() {
+		if r.Kind != arp.RoleReply || r.MAC.String() == s.mac.String() {
 			return true
 		}
 		key := r.IP.String() + "|" + r.MAC.String()

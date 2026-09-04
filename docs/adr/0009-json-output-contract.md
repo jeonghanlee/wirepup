@@ -23,3 +23,4 @@ tshark offers two JSON shapes: `-T json` (one nested document per packet) and `-
 - JSON output gets golden-file tests; a change that breaks a golden file is either a bug or a deliberate major version change recorded in this ADR.
 - `docs/output-schema.md` documents every document type from the milestone that introduces JSON output (M4) onward.
 - Human-readable text output is a separate renderer over the same output structs and may change freely.
+- Renaming a finding code does not change the major number: the document shape is unchanged. `ca-no-answer` and `pva-no-answer` became `ca-search-no-response` and `pva-search-no-response`; a consumer matching the old strings must update.

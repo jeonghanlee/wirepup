@@ -46,13 +46,13 @@ func Event(w io.Writer, e output.Event) {
 func DeviceEvent(w io.Writer, e output.DeviceEvent) {
 	var b strings.Builder
 	switch e.Change {
-	case "new_device":
+	case output.ChangeNewDevice:
 		b.WriteString("NEW DEVICE\n")
-	case "new_neighbor":
+	case output.ChangeNewNeighbor:
 		neighborBlock(&b, e)
 		io.WriteString(w, b.String())
 		return
-	case "address_conflict":
+	case output.ChangeConflict:
 		if e.Conflict != nil {
 			b.WriteString("ADDRESS CONFLICT\n")
 			line(&b, "Address", e.Conflict.Address)
@@ -88,7 +88,7 @@ func DeviceEvent(w io.Writer, e output.DeviceEvent) {
 	}
 	if e.VLAN != 0 {
 		line(&b, "VLAN", fmt.Sprintf("%d", e.VLAN))
-	} else if e.Change == "new_device" {
+	} else if e.Change == output.ChangeNewDevice {
 		line(&b, "VLAN", e.Device.VLAN)
 	}
 	if e.Device.Vendor != "" {

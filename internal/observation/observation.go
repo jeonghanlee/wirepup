@@ -16,6 +16,13 @@ const (
 	WeakHint   Confidence = "weak_hint"
 )
 
+// Transport names carried by the EPICS observations and by the active
+// searches; the same two strings appear in the JSON "transport" field.
+const (
+	TransportUDP = "udp"
+	TransportTCP = "tcp"
+)
+
 // Kind is the stable public name of an observation type, for example
 // "arp" or "ca.search". Kind strings are part of the JSON contract.
 type Kind string

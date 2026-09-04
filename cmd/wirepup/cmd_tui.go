@@ -70,7 +70,9 @@ func runTUI(ctx context.Context, e *env, args []string) int {
 	defer cancel()
 	go func() {
 		ds, cs, _ := runSource(ctx, src, func(obs []observation.Observation) {
-			table.Apply(obs)
+			if wantPacket(obs, display) {
+				table.Apply(obs)
+			}
 			for _, o := range obs {
 				if !wantObservation(o, display, g.verbose) {
 					continue

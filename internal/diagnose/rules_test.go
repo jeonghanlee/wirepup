@@ -42,6 +42,12 @@ func TestDHCPNoOfferAndAutoIPFallback(t *testing.T) {
 	if strings.Contains(codes(r.Observed), CodeDHCPNoOffer) {
 		t.Fatal("no-offer reported inside the grace period")
 	}
+	// The Auto-IP finding must not assert the failure the report has not found.
+	for _, f := range r.Inferred {
+		if f.Code == CodeAutoIPFallback && strings.Contains(f.Text, "Auto-IP fallback") {
+			t.Fatalf("auto-ip text asserts a DHCP failure inside the grace period: %s", f.Text)
+		}
+	}
 }
 
 func TestCARules(t *testing.T) {

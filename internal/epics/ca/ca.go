@@ -237,8 +237,9 @@ func (o Observation) Kind() observation.Kind {
 }
 
 // Interpret fills the interpreted fields from the header, payload, and
-// transport context. isServerPort tells whether the destination port is
-// a known server port (request) rather than a client port.
+// transport context. serverPort is the known server port; a message
+// whose direction the header does not reveal is a request when it is
+// addressed to that port and a response otherwise.
 func Interpret(m Message, transport string, src, dst netip.Addr, srcPort, dstPort uint16, serverPort uint16) Observation {
 	o := Observation{Message: m, Transport: transport, Src: src, Dst: dst, SrcPort: srcPort, DstPort: dstPort}
 	switch m.Command {

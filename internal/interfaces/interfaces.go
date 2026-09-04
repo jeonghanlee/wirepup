@@ -26,7 +26,6 @@ type Interface struct {
 	Index     int
 	MAC       string
 	Up        bool
-	Running   bool
 	Loopback  bool
 	OperState string
 	MTU       int
@@ -63,7 +62,6 @@ func convert(ifi net.Interface) Interface {
 		Index:     ifi.Index,
 		MAC:       ifi.HardwareAddr.String(),
 		Up:        ifi.Flags&net.FlagUp != 0,
-		Running:   ifi.Flags&net.FlagRunning != 0,
 		Loopback:  ifi.Flags&net.FlagLoopback != 0,
 		OperState: operState(ifi.Name),
 		MTU:       ifi.MTU,

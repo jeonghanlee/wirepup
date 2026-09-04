@@ -14,14 +14,6 @@ import (
 	"github.com/jeonghanlee/wirepup/internal/interfaces"
 )
 
-// Finding sections.
-const (
-	SectionObserved    = "observed"
-	SectionInferred    = "inferred"
-	SectionRecommended = "recommended"
-	SectionExecuted    = "executed"
-)
-
 // Finding codes are stable identifiers in the JSON output.
 const (
 	CodeLocalContext        = "local-context"
@@ -36,8 +28,9 @@ const (
 	CodeNoLocalIPv4         = "no-local-ipv4"
 )
 
-// assumedPrefixBits is used when a foreign address gives no prefix hint.
-const assumedPrefixBits = 24
+// AssumedPrefixBits is the prefix length assumed for an address that
+// gives no prefix hint; the active commands assume the same length.
+const AssumedPrefixBits = 24
 
 // Ref is a packet reference.
 type Ref = device.Ref
@@ -198,7 +191,7 @@ func (r *Report) evaluateAddress(ctx Context, d device.Device, a device.Address,
 		Evidence: ev,
 		Data:     map[string]string{"mac": mac, "address": a.Addr.String(), "local_ipv4": joinPrefixes(ctx.LocalIPv4)},
 	})
-	prefix := netip.PrefixFrom(a.Addr, assumedPrefixBits).Masked()
+	prefix := netip.PrefixFrom(a.Addr, AssumedPrefixBits).Masked()
 	cand, ok := candidate(prefix, ctx, devices)
 	if !ok {
 		r.Recommended = append(r.Recommended, Finding{
@@ -210,7 +203,7 @@ func (r *Report) evaluateAddress(ctx Context, d device.Device, a device.Address,
 	}
 	r.Recommended = append(r.Recommended, Finding{
 		Code:     CodeTemporaryAddress,
-		Text:     fmt.Sprintf("consider a temporary secondary address %s on %s to reach %s (prefix /%d assumed; verify before use); no host configuration is changed without an explicit connect command", cand, ctx.Interface, a.Addr, assumedPrefixBits),
+		Text:     fmt.Sprintf("consider a temporary secondary address %s on %s to reach %s (prefix /%d assumed; verify before use); no host configuration is changed without an explicit connect command", cand, ctx.Interface, a.Addr, AssumedPrefixBits),
 		Evidence: ev,
 		Data:     map[string]string{"candidate": cand.String(), "prefix": prefix.String(), "interface": ctx.Interface, "target": a.Addr.String()},
 	})
@@ -264,13 +257,7 @@ func candidate(prefix netip.Prefix, ctx Context, devices []device.Device) (netip
 	return netip.Addr{}, false
 }
 
-func strongClaim(a device.Address) bool {
-	switch a.State {
-	case device.StateObserved, device.StateClaimed, device.StateLeased:
-		return true
-	}
-	return false
-}
+func strongClaim(a device.Address) bool { return device.Strong(a.State) }
 
 func containing(prefixes []netip.Prefix, a netip.Addr) (netip.Prefix, bool) {
 	for _, p := range prefixes {

@@ -128,16 +128,31 @@ Passive. Five views (Devices, Events, EPICS, Interfaces, Diagnostics) over the s
 ```text
 -i, --interface   interface to capture on (comma-separated list for diagnose)
 --pcap            capture file instead of an interface (comma-separated list for diagnose)
---local           local prefixes of the capture host, for --pcap
---protocol        comma-separated filter: frame, arp, lldp, ipv4, dhcp, ipv6, ndp, tcp, ca, pva
+--local           local prefixes of the capture host, for --pcap (diagnose, epics diagnose, tui)
+--protocol        comma-separated filter: frame, arp, lldp, ipv4, dhcp, ipv6, ndp, tcp, ca, pva (observe, discover, capture, read, diagnose, tui, epics observe, epics diagnose)
 --json            machine-readable output (ADR-0009)
 --quiet           no progress messages
---verbose         include frame, ipv4, ipv6, and tcp observations in observe
+--verbose         include frame, ipv4, ipv6, and tcp observations (observe, read, tui)
 --timeout         stop after this duration
 --no-promisc      leave promiscuous mode off
---oui-file        IEEE oui.txt for vendor hints (ADR-0011)
+--oui-file        IEEE oui.txt for vendor hints (ADR-0011; discover, read --devices, diagnose, epics diagnose, tui)
 --yes             skip the confirmation of an active command
 ```
+
+`ca` and `pva` admit their UDP search and beacon ports and every IPv4 TCP
+segment at the kernel. A server advertises its TCP port in its search
+responses and beacons, and the decoder (`internal/decode`) learns it from
+them, so the kernel cannot know that port in advance. The decoder labels a
+segment CA only on a default or learned port, and PVA on such a port or on
+recognisable PVA framing (then `strong_hint`, ADR-0008); other segments
+still yield `ipv4` and `tcp` observations. `observe`, `epics observe`, and
+`read` show only the observations of the requested protocols; `discover`,
+`read --devices`, `diagnose`, `epics diagnose`, and `tui` ingest a packet
+into the device table only when one of its observations belongs to them;
+`capture` writes every admitted
+frame, so a `--protocol ca` capture file holds every IPv4 TCP segment.
+`epics find` checks the `--protocol` value but always observes CA and PVA
+together. IPv6 CA and PVA are outside these rules.
 
 ## Exit codes
 
