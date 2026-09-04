@@ -67,7 +67,7 @@ wirepup diagnose --epics -i enp3s0
 wirepup diagnose --pcap a.pcap,b.pcap --epics
 ```
 
-Passive. A live run observes for `--timeout` (default 10 s) and then applies the rules; a capture file needs `--local` for the capture host's prefixes. Several interfaces or files, comma-separated, feed one report so that discovery activity can be compared between sources. With a target address the exit code is 5 when the target was not observed.
+Passive. A live run observes for `--timeout` (default 10 s) and then applies the rules; a capture file needs `--local` for the capture host's prefixes. Several interfaces or files, comma-separated, feed one report so that discovery activity can be compared between sources. With a target address the exit code is 5 when the target was not observed. With `--epics` and no target address, a window with no CA or PVA activity observed is reported under Inferred and the exit code stays 0.
 
 ## `wirepup epics`
 

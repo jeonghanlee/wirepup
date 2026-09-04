@@ -48,6 +48,7 @@ var goldenCases = []struct {
 	{"dhcp-no-offer.diagnosis", []string{"diagnose", "--pcap", filepath.Join(fixtureDir, "dhcp-no-offer.pcap"), "--local", "10.20.30.51/24", "--json", "--quiet"}},
 	{"ca-duplicate-servers.diagnosis", []string{"diagnose", "--epics", "--pcap", filepath.Join(fixtureDir, "ca-duplicate-servers.pcap"), "--local", "10.20.4.88/24", "--json", "--quiet"}},
 	{"two-sources.diagnosis", []string{"diagnose", "--epics", "--pcap", filepath.Join(fixtureDir, "ca-search-no-response.pcap") + "," + filepath.Join(fixtureDir, "arp-autoip-selection.pcap"), "--local", "10.20.4.88/24", "--json", "--quiet"}},
+	{"epics-nothing-observed.diagnosis", []string{"diagnose", "--epics", "--pcap", filepath.Join(fixtureDir, "arp-autoip-selection.pcap"), "--local", "10.20.30.51/24", "--json", "--quiet"}},
 }
 
 func TestGoldenJSON(t *testing.T) {

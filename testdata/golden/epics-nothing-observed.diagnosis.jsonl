@@ -1,0 +1,17 @@
+{
+  "schema": "wirepup/diagnosis/1",
+  "source": "../../testdata/pcap/arp-autoip-selection.pcap",
+  "interface": "capture",
+  "target_observed": false,
+  "generated_at": "2026-01-01T00:00:04Z",
+  "observed": [],
+  "inferred": [
+    {
+      "code": "epics-nothing-observed",
+      "text": "no CA or PVA search, server, or beacon was observed in this window; nothing can be said about EPICS from passive observation alone",
+      "evidence": []
+    }
+  ],
+  "recommended": [],
+  "executed": []
+}

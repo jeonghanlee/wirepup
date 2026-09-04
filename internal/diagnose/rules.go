@@ -54,7 +54,25 @@ func RunAll(ctx Context, table *device.Table, target netip.Addr, opts Options) R
 	r.caRules(ctx, table)
 	r.pvaRules(table)
 	r.sourceRules(table)
+	if opts.EPICSOnly {
+		r.epicsNothingObserved(table)
+	}
 	return r
+}
+
+// epicsNothingObserved states, under --epics, that the window held no CA
+// or PVA traffic at all. A plain diagnose always carries the local
+// context, but --epics skips it, so without this the report would be
+// silent; the finding says "observed", never "crossed", because a kernel
+// or display filter may have removed EPICS traffic that was on the wire.
+func (r *Report) epicsNothingObserved(table *device.Table) {
+	if len(table.CASearches()) == 0 && len(table.CAServers()) == 0 &&
+		len(table.PVASearches()) == 0 && len(table.PVAServers()) == 0 {
+		r.Inferred = append(r.Inferred, Finding{
+			Code: CodeEPICSNothingObserved,
+			Text: "no CA or PVA search, server, or beacon was observed in this window; nothing can be said about EPICS from passive observation alone",
+		})
+	}
 }
 
 // dhcpRules reports discovers that never got an offer and NAKs.
