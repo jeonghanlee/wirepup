@@ -20,8 +20,22 @@ WirePup is **not** intended to replace Wireshark. Wireshark is a general-purpose
 **Tagline:** A lightweight network discovery and diagnostic tool for engineers.  
 **License:** Apache License 2.0  
 **Initial platform:** Linux  
-**Initial implementation language:** Go  
+**Initial implementation language:** Go (1.25 or newer)  
 **Development model:** local-first, documentation-first, multi-agent assisted
+
+## Building
+
+WirePup builds with the Go toolchain only; no cgo and no C libraries.
+
+- **Go 1.25 or newer** is required. The `golang.org/x` modules track the two
+  most recent Go releases, so a security update to a dependency raises this
+  floor; `go.mod` records the current minimum.
+- On Debian 13 (trixie) the base archive ships Go 1.24. Enable
+  `trixie-backports` first (it is off by default), then `apt install -t
+  trixie-backports golang-go` (currently Go 1.26); or install from the
+  official `go.dev` tarball, which needs no backports.
+- `make help` lists the targets; `make build` produces the static binary in
+  `bin/`, and `make check` runs gofmt, vet, and the tests.
 
 ## Core goals
 

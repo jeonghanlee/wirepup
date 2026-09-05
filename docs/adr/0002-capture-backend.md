@@ -50,7 +50,7 @@ A libpcap-backed source remains possible behind the same interface as an optiona
 
 ## Consequences
 
-- Direct dependencies are limited to `golang.org/x/sys` and `github.com/gopacket/gopacket`; both are BSD-3 and compatible with Apache-2.0.
+- Direct dependencies are limited to `golang.org/x/sys`, `golang.org/x/term`, and `github.com/gopacket/gopacket`; all are BSD-3 and compatible with Apache-2.0.
 - Passive capture requires `CAP_NET_RAW` (or root). The tool must never require `CAP_NET_ADMIN` for passive commands.
 - The receive loop uses `recvmsg` per packet. This is adequate for engineering-laptop rates (NFR-006); a `TPACKET` ring can be added later behind the same interface.
 - Dropped-packet counts are read from `PACKET_STATISTICS` and reported.
