@@ -7,7 +7,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: M1-M17 are committed and verified. No open milestone remains.
+Next session entry point: `docs/milestone-182961f.md`: review the draft M18 plan against `cmd/wirepup` and `docs/cli-design.md`. M18 is dependency-ready; M18-M22 implementation has not started.
 
 ## Milestone
 
@@ -32,6 +32,11 @@ Next session entry point: `docs/milestone-182961f.md`: M1-M17 are committed and 
 | vocabulary | M15 | Oper-state unknown sentinel named once | Milestone | Complete | No | D4 | `interfaces.OperStateUnknown` mirrored as `output.OperStateUnknown`; `text` and `tui` compare against it; [detail](#m15---oper-state-unknown-sentinel-named-once) |
 | rules | M16 | diagnose --epics reports the absence of EPICS traffic | Milestone | Complete | No | D2 | one Inferred finding under `--epics` when no CA/PVA record exists; golden added; [detail](#m16---diagnose---epics-reports-the-absence-of-epics-traffic) |
 | contract | M17 | Aggregate unanswered-search findings carry no data keys | Milestone | Complete | No | D4, D5 | own codes `ca-searches-no-response`/`pva-searches-no-response` with a `searches` key; [detail](#m17---aggregate-unanswered-search-findings-carry-no-data-keys) |
+| cli | M18 | Direct execution and option reference | Milestone | Not started | Yes | D6 | Existing script behavior preserved; every option documented against the implementation; [detail](#m18---direct-execution-and-option-reference) |
+| cli | M19 | Guided execution from observed results | Milestone | Not started | No | D6, M18 | Bare terminal invocation guides the user through the existing operations and explains next actions; [detail](#m19---guided-execution-from-observed-results) |
+| shell | M20 | Bash completion and installation | Milestone | Not started | No | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
+| docs | M21 | Executable scenarios and bidirectional option links | Milestone | Not started | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
+| docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Not started | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
 
 ### Decisions
 
@@ -42,6 +47,7 @@ Next session entry point: `docs/milestone-182961f.md`: M1-M17 are committed and 
 | D3 | Re-examination of the Keep rows of `docs/CLOSED_DOORS.md` (paired review debate, chat only): `dashIf`, `addrText`, `broadcastOf` become M14; the two snap-length defaults become M12; the EtherType, opcode, hardware and protocol constants of bpf and active become M13, with `arp` exporting its address-length constants; the U/L-bit test, the frame offsets, and `bpf.AcceptLength` stay Keep; the fixtures row keeps its verdict with a corrected premise; implementation of M12-M14 not yet authorized | 2026-09-03 |
 | D4 | M15, M11, and M17 move from Backlog to Milestone: M15 names the oper-state sentinel once (`interfaces.OperStateUnknown`, mirrored by `output`); M11 keeps `decode.SetPorts` and records it as the seam for offset EPICS ports; M17 is to be done, its shape still to be picked; implementation not yet authorized | 2026-09-03 |
 | D5 | M17 shape: separate aggregate codes `ca-searches-no-response`/`pva-searches-no-response`, per-search codes unchanged. The aggregate data key is `searches` (number of unanswered searches), distinct from the per-search `count`, so the two never collide under one key | 2026-09-04 |
+| D6 | Assign M18-M22 to plan direct execution alongside no-argument terminal guidance, Bash completion with installation support, real scenario walkthroughs, two-way scenario/option links, and usage-first documentation cleanup. Preserve current safety rules, output contracts, and engineering references. Draft implementation plans are not yet accepted; implementation is not yet authorized. | 2026-09-05 |
 
 ### Assignment History
 
@@ -53,7 +59,7 @@ Next session entry point: `docs/milestone-182961f.md`: M1-M17 are committed and 
 
 ### Milestone Details
 
-Each Summary states the defect as found at commit 182961f; the current state is in Implementation Plan and Verification Results.
+M1-M17 summaries state the defects as found at commit 182961f. M18-M22 describe usage work assigned on 2026-09-05. Current state is in each Implementation Plan and Verification Results.
 
 #### M1 - Kernel filter and device-table ingest apply one protocol set
 
@@ -1011,6 +1017,306 @@ Superseded Plan Artifacts: none
 ##### Closure Evidence
 
 - committed in f85b84f; info items (data key `count` to `searches`, PVA aggregate assertion) applied and reviewed
+
+#### M18 - Direct execution and option reference
+
+Origin: 182961f / M18
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+Preserve explicit command execution for scripts and establish the option contract shared by guidance, completion, and documentation.
+
+##### Scope
+
+- Inventory all public commands, subcommands, and options from parser registrations and actual consumers, including accepted-but-unused options.
+- Document each option's meaning, default, required or optional status, valid values, applicable commands, combinations, exclusions, privilege needs, and confirmation behavior.
+- Define direct versus guided entry: explicit commands remain direct; bare terminal invocation enters guidance; non-terminal invocation must not wait for interactive answers.
+
+Out of scope: implementing guidance or completion, new protocol behavior, or changing existing JSON and exit-code contracts.
+
+##### Completion Criteria
+
+- Every public option has an accurate reference checked against the implementation.
+- Existing explicit commands preserve their output, exit status, and confirmation behavior; help does not enter guidance.
+- Reference entries support the scenario links completed by M21.
+
+##### Dependencies And Decisions
+
+- D6. This contract supplies M19 and M20; they can proceed independently after it is complete.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Inventory command registrations, option consumers, and existing CLI tests.
+2. Write the detailed option reference and direct-versus-guided entry contract under docs/.
+3. Add focused regression coverage for script invocations and any required dispatch changes.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | CLI integration | Run the built CLI on shipped PCAPs with explicit commands, JSON, invalid arguments, and redirected stdin; run existing golden tests. | Debian 13, Go minimum from go.mod | Existing output and exit status retained; no unexpected prompts. |
+| T2 | Reference review | Compare every reference entry against registrations, defaults, command help, and actual option consumers. | Source and built CLI | Complete option coverage with accurate defaults and restrictions. |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Debian 13 | Pending | none |
+| T2 | Not run | Source and built CLI | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+#### M19 - Guided execution from observed results
+
+Origin: 182961f / M19
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+Let users start without knowing command names or a full option set. Ask for the purpose, obtain context, observe, interpret findings, and offer the next appropriate action.
+
+##### Scope
+
+- Enter guidance on bare wirepup in a terminal; preserve direct execution and prompt-free non-terminal behavior.
+- Support device discovery, EPICS connection diagnosis, and capture-file analysis with contextual interface or file selection.
+- Ask only for information that cannot be safely obtained locally; start with passive observation and explain uncertainty using existing findings.
+- Show the equivalent explicit command with safely quoted values for later reuse.
+- Explain and confirm exact transmissions or host changes before active actions; handle cancellation, EOF, interruption, and temporary-address cleanup.
+
+Out of scope: LLM services, remote execution, new diagnosis rules, or autonomous active probing.
+
+##### Completion Criteria
+
+- Guided and direct execution use the same operation implementation and evidence model.
+- Users can complete each primary workflow without first supplying every option.
+- Cancellation and non-terminal use cannot hang or trigger active operations; confirmed actions remain bounded and reported.
+
+##### Dependencies And Decisions
+
+- D6, M18: guidance consumes the established command and option contract.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Implement terminal detection and guided entry according to M18.
+2. Add purpose and context selection over existing interface discovery, replay, and diagnosis.
+3. Map findings to explanations and next actions, display equivalent commands, and integrate confirmation and cancellation.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | PTY integration | Drive the real CLI through fixture analysis, invalid input, cancellation, EOF, and interruption; compare with the displayed direct command. | Debian 13, PTY, shipped PCAPs | Navigable guidance and equivalent results. |
+| T2 | Non-terminal integration | Run bare and explicit invocations with redirected or closed stdin under a bounded timeout. | Debian 13 shell | No interactive wait; documented help or usage status; direct commands unchanged. |
+| T3 | Safety integration | Capture traffic during passive and cancelled guided workflows; exercise a confirmed temporary-address action and its cleanup. | Disposable Linux namespace lab with required capabilities | Passive and cancelled paths produce no probes or host changes; confirmed action matches its plan and cleanup restores state. |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Debian 13 PTY | Pending | none |
+| T2 | Not run | Debian 13 shell | Pending | none |
+| T3 | Not run | Linux namespace lab | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+#### M20 - Bash completion and installation
+
+Origin: 182961f / M20
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+Complete commands, options, finite values, interfaces, and capture paths in Bash and install completion alongside the executable.
+
+##### Scope
+
+- Respect subcommand context, argument position, options consuming values, and file paths containing spaces.
+- Discover local interfaces without privileges; do not issue active PV searches or other network operations during completion.
+- Extend make install, install.dry-run, and install.check for completion using INSTALL_LOCATION and conventional Bash completion discovery.
+- Document activation, optional bash-completion requirements, custom prefixes, and reload behavior in existing shells.
+
+Out of scope: Zsh or Fish support, active queries, or automatic shell startup-file edits.
+
+##### Completion Criteria
+
+- Candidates match M18 and omit invalid options or values for the current context.
+- Completion works through the installed artifact and handles missing optional shell integration clearly.
+- Preview is read-only; install and check cover both binary and completion at the selected prefix.
+
+##### Dependencies And Decisions
+
+- D6, M18: completion consumes the same public command and option contract as guidance.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Implement context-aware completion while avoiding a second divergent option definition where practical.
+2. Extend installation, preview, and verification for the completion artifact.
+3. Add real Bash tests and document activation and custom-prefix behavior.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Bash integration | Source the shipped completion and invoke its registered function with real command contexts, interfaces, and capture paths containing spaces. | Debian 13, Bash, temporary filesystem | Correct candidates and value positions; no command action executed. |
+| T2 | Install integration | Run make install.dry-run, install, and install.check into a temporary prefix; load installed completion and run installed wirepup. | Debian 13, Bash, custom INSTALL_LOCATION | Preview changes nothing; both artifacts work; checks detect missing completion or incorrect PATH. |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Debian 13 Bash | Pending | none |
+| T2 | Not run | Temporary install prefix | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+#### M21 - Executable scenarios and bidirectional option links
+
+Origin: 182961f / M21
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+Provide reproducible tasks with direct and guided entry. Each scenario explains its options, and each option links back to relevant scenarios.
+
+##### Scope
+
+- Cover unknown-device discovery, same-layer-2 different-subnet diagnosis, CA/PVA connection problems, capture and replay, temporary address setup and removal, and TUI use.
+- Include prerequisites, minimum command, required options, optional refinements with defaults and reasons, combinations, expected output, interpretation, next actions, and cleanup.
+- Link scenarios to option entries and options to scenarios, including help/version and automation-oriented usage.
+- Show guided choices, equivalent direct commands, and completion examples.
+- Use shipped PCAPs for offline reproduction; distinguish illustrative output from observed output and state live hardware and privilege requirements.
+
+Out of scope: new diagnosis behavior or claiming live validation from an offline substitute.
+
+##### Completion Criteria
+
+- Each scenario has an executable direct path and explains its relevant guided path.
+- Every public option has a meaningful scenario link; every scenario option resolves to its reference.
+- Outputs and next actions are checked on real execution paths; required live cases have lab evidence before completion.
+
+##### Dependencies And Decisions
+
+- D6, M18, M19, M20: final walkthroughs must match the implemented options, guidance, and completion.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Build the scenario inventory and option-to-scenario coverage map from M18.
+2. Write and execute offline cases, guided equivalents, and completion examples.
+3. Validate live procedures in the isolated lab and publish interpretation and cleanup instructions.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Offline walkthrough | Execute each offline command and guided equivalent on its named shipped PCAP; compare output and exit status with the document. | Debian 13, shipped fixtures | Reproducible cases with no omitted required options. |
+| T2 | Documentation coverage | Check both directions of option/scenario links against M18, including defaults, combinations, and restrictions. | Markdown and built CLI | No orphan option, broken link, or unsupported example. |
+| T3 | Live walkthrough | Follow discovery, capture, TUI, and temporary-address procedures on the real CLI and execute cleanup. | Disposable Linux namespace lab and PTY | Instructions match actual behavior and restore initial lab state. |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Debian 13 | Pending | none |
+| T2 | Not run | Markdown and built CLI | Pending | none |
+| T3 | Not run | Linux namespace lab and PTY | Pending | none |
+
+##### Closure Evidence
+
+- none
+
+#### M22 - Usage-first documentation navigation and cleanup
+
+Origin: 182961f / M22
+Identity History: none
+GitHub Issue: none
+Status: Not started
+
+##### Summary
+
+Make maintained usage instructions easy to find while preserving the safety, schema, and design material required to maintain WirePup.
+
+##### Scope
+
+- Inventory README, docs/, and linked development prompts as current usage, maintained engineering references, or superseded initial plans.
+- Structure README and a docs index around installation, first use, direct/guided operation, completion, scenarios, and the option reference.
+- Compare each initial plan with current implementation and M21 before retirement; relocate unique current requirements to maintained documents.
+- Retain safety rules, output contracts, relevant ADRs, the current milestone document, and CLOSED_DOORS; preserve committed historical evidence and update inbound links.
+
+Out of scope: deletion based only on age, Git history rewriting, or resetting the current milestone generation.
+
+##### Completion Criteria
+
+- Readers reach current executable instructions without first learning development history.
+- Every retired plan has a documented replacement or committed historical reference, with no loss of current requirements.
+- Local links resolve and engineering references remain accessible separately from user workflows.
+
+##### Dependencies And Decisions
+
+- D6, M21: verified user instructions must exist before older usage material is retired.
+
+##### Implementation Plan
+
+Plan Status: draft
+Plan Acceptance: none
+Implementation Authorization: none
+Superseded Plan Artifacts: none
+
+1. Compare existing documents with M21 and record each cleanup candidate's disposition in this milestone detail.
+2. Rewrite README and the docs index, relocate unique maintained content, and retire superseded initial-development material.
+3. Check inbound links and complete reader journeys from installation through use and recovery.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Documentation integrity | Check local links and compare each removed document with its replacement and committed history. | Repository Markdown and Git history | No dangling links or lost current safety, schema, or implementation requirements. |
+| T2 | Reader walkthrough | Follow README through installation, first guided run, direct execution, completion setup, and option reference. | Debian 13, installed CLI | Accurate complete usage route without initial-development documents. |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | Not run | Markdown and Git history | Pending | none |
+| T2 | Not run | Debian 13 | Pending | none |
+
+##### Closure Evidence
+
+- none
 
 ## Backlog
 
