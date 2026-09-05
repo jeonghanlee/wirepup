@@ -1,0 +1,11 @@
+# Local tool selection, output path, and verification scope.
+# The Go toolchain enforces the minimum version recorded in go.mod.
+GO ?= go
+BIN ?= bin/$(APPNAME)
+PKG ?= ./...
+TEST_FLAGS ?=
+INSTALL ?= install
+INSTALL_LOCATION ?= $(HOME)/.local
+
+-include $(TOP)/../CONFIG_SITE.local
+-include $(TOP)/configure/CONFIG_SITE.local

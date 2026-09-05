@@ -1,0 +1,19 @@
+# Resolve gofmt from the selected Go toolchain only when it is needed.
+GOFMT ?= $(shell "$(GO)" env GOROOT)/bin/gofmt
+LDFLAGS = -s -w -X main.version=$(VERSION)
+
+# ADR-0002 and ADR-0012 require static builds; race opts into cgo locally.
+GO_ENV := CGO_ENABLED=0
+RACE_ENV := CGO_ENABLED=1
+
+INSTALL_DESTINATION := $(INSTALL_LOCATION)/bin/wirepup
+INSTALL_TOOL := $(TOP)/tools/install-wirepup.bash
+INSTALL_ENV = INSTALL_COMMAND=$(call shell_quote,$(INSTALL))
+INSTALL_SETTINGS = $(sort GO BIN VERSION LDFLAGS INSTALL $(foreach name,$(.VARIABLES),$(if $(findstring command line,$(origin $(name))),$(name))))
+INSTALL_ARGS = $(call shell_quote,$(BIN)) $(call shell_quote,$(INSTALL_DESTINATION)) $(call shell_quote,$(CURDIR)) \
+    $(foreach name,$(filter-out INSTALL_LOCATION,$(INSTALL_SETTINGS)),$(call shell_quote,$(name)=$($(name))))
+
+VARS_EXCLUDES += GO_ENV RACE_ENV INSTALL_TOOL INSTALL_ENV INSTALL_ARGS INSTALL_SETTINGS INSTALL_DESTINATION
+
+# Public settings remain visible when supplied by the environment or command line.
+VARS_EXCLUDES := $(filter-out APPNAME SRC_URL VERSION GO GOFMT BIN PKG TEST_FLAGS INSTALL INSTALL_LOCATION LDFLAGS VERBOSE DEBUG_SHELL,$(VARS_EXCLUDES))

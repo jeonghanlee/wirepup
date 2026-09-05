@@ -1,0 +1,31 @@
+ifndef VERBOSE
+QUIET := @
+endif
+
+ifdef DEBUG_SHELL
+SHELL = /bin/sh -x
+endif
+
+# Read standalone and inline target descriptions from the included files.
+define HELP_AWK
+    FNR == 1 { prev = "" } \
+    /^##@ / { printf "\n%s\n", substr($$0, 5); prev = ""; next } \
+    /^[a-zA-Z._0-9%-]+:/ { \
+        msg = prev; \
+        if (!sub(/^## /, "", msg)) { \
+            msg = $$0; \
+            if (!sub(/^[^:]*:.* ## /, "", msg)) msg = ""; \
+        } \
+        if (msg != "") { \
+            split($$1, target, ":"); \
+            printf "  %-22s   %s\n", target[1], msg; \
+        } \
+    } \
+    { prev = $$0 }
+endef
+
+VARS_EXCLUDES += QUIET SHELL HELP_AWK
+
+# Quote one shell argument without expanding its contents in the shell.
+shell_quote = '$(subst ','"'"',$(1))'
+VARS_EXCLUDES += shell_quote

@@ -1,0 +1,50 @@
+.PHONY: check-go check-gofmt check-cc check-tools test race vet fmt-check check
+
+check-go:
+	$(QUIET) if ! command -v "$(GO)" >/dev/null 2>&1; then \
+	    printf '%s\n' 'error: Go not found; set GO to a Go executable.' \
+	        'Install Go from https://go.dev/dl/ at the version required by go.mod or newer.'; \
+	    exit 1; \
+	fi
+
+check-gofmt: check-go
+	$(QUIET) if ! command -v "$(GOFMT)" >/dev/null 2>&1; then \
+	    printf '%s\n' 'error: gofmt not found; install the complete Go toolchain or set GOFMT.'; \
+	    exit 1; \
+	fi
+
+check-cc: check-go
+	$(QUIET) compiler="$$("$(GO)" env CC)"; \
+	if ! command -v "$${compiler%% *}" >/dev/null 2>&1; then \
+	    printf '%s\n' 'error: the race detector requires a C compiler.' \
+	        'Install on Debian: apt install build-essential' \
+	        'Install on Rocky Linux: dnf install gcc'; \
+	    exit 1; \
+	fi
+
+##@ Verification
+## Check Go and gofmt availability (race also checks the C compiler)
+check-tools: check-gofmt
+
+## Run unit and golden tests; TEST_FLAGS adds go test options
+test: check-go
+	$(QUIET) $(GO_ENV) "$(GO)" test $(TEST_FLAGS) $(PKG)
+
+## Run tests under the race detector with cgo enabled
+race: check-cc
+	$(QUIET) $(RACE_ENV) "$(GO)" test -race $(TEST_FLAGS) $(PKG)
+
+## Run go vet
+vet: check-go
+	$(QUIET) $(GO_ENV) "$(GO)" vet $(PKG)
+
+## Fail if formatting is invalid or any Go file needs gofmt
+fmt-check: check-gofmt
+	$(QUIET) out="$$("$(GOFMT)" -l .)" || exit $$?; \
+	if [ -n "$$out" ]; then \
+	    printf 'gofmt needed:\n%s\n' "$$out"; \
+	    exit 1; \
+	fi
+
+## Run formatting checks, vet, and tests
+check: fmt-check vet test

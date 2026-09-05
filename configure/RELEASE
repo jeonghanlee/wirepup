@@ -1,0 +1,7 @@
+# Project identity and the version embedded in the executable.
+APPNAME := wirepup
+SRC_URL := https://github.com/jeonghanlee/wirepup
+VERSION ?= $(shell git -C "$(TOP)" describe --tags --always --dirty 2>/dev/null || printf '%s' dev)
+
+-include $(TOP)/../RELEASE.local
+-include $(TOP)/configure/RELEASE.local

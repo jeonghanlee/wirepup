@@ -1,0 +1,23 @@
+.PHONY: help help.detail
+
+##@ Help
+## Show the primary build, install, and verification workflows
+help:
+	$(QUIET) printf '%s\n' 'Usage: make <target> [VAR=value]' \
+	    'Run these commands from the WirePup repository directory.' '' 'Workflows'
+	$(QUIET) printf '  %-18s   %s\n' 'Stage' 'Command' \
+	    '------------------' '--------------------------------' \
+	    'Verify' 'make check' \
+	    'Build' 'make build' \
+	    'Preview install' 'make install.dry-run' \
+	    'Install' 'make install' \
+	    'Verify install' 'make install.check'
+	$(QUIET) printf '\n%s\n' 'Details: make help.detail'
+	$(QUIET) :
+
+## List targets grouped by role
+help.detail:
+	$(QUIET) printf '  %-22s   %s\n' 'Target' 'Description' \
+	    '----------------------' '----------------------------------------'
+	$(QUIET) awk '$(HELP_AWK)' $(foreach file,$(MAKEFILE_LIST),$(call shell_quote,$(file)))
+	$(QUIET) :

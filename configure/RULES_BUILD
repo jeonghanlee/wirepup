@@ -1,0 +1,13 @@
+.PHONY: all build clean
+
+##@ Build
+## Build the static executable (alias of build)
+all: build
+
+## Build the static executable at BIN
+build: check-go
+	$(QUIET) $(GO_ENV) "$(GO)" build -trimpath -ldflags '$(LDFLAGS)' -o "$(BIN)" ./cmd/wirepup
+
+## Remove only the executable selected by BIN
+clean:
+	$(QUIET) rm -f -- "$(BIN)"

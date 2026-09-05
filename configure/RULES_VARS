@@ -1,0 +1,32 @@
+VARS_EXCLUDES += .SHELLSTATUS FILTER UNAME_% SRC_VARIABLES
+VARS_EXCLUDES += $(filter -% @%, $(.VARIABLES))
+
+FILTER ?= 1
+ifeq ($(FILTER),1)
+SRC_VARIABLES := $(sort $(filter-out $(VARS_EXCLUDES) VARS_EXCLUDES, $(.VARIABLES)))
+else
+SRC_VARIABLES := $(filter $(FILTER)%, $(sort $(filter-out $(VARS_EXCLUDES) VARS_EXCLUDES, $(.VARIABLES))))
+endif
+
+.PHONY: env vars FORCE
+
+##@ Configuration
+## Print active configuration (alias of vars)
+env: vars
+
+## Print active configuration; FILTER selects a variable prefix
+vars:
+	$(QUIET) $(foreach v,$(SRC_VARIABLES),$(info $(v) = $($(v)))):
+
+## Print one variable and its origin
+PRINT.%:
+	$(QUIET) $(info $* = $($*))$(info $* origin: $(origin $*)):
+
+## Print one variable value
+print-%:
+	$(QUIET) $(info $($*)):
+
+.DELETE_ON_ERROR:
+.NOTPARALLEL:
+
+FORCE:

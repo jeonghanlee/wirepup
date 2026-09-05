@@ -34,8 +34,39 @@ WirePup builds with the Go toolchain only; no cgo and no C libraries.
   `trixie-backports` first (it is off by default), then `apt install -t
   trixie-backports golang-go` (currently Go 1.26); or install from the
   official `go.dev` tarball, which needs no backports.
-- `make help` lists the targets; `make build` produces the static binary in
+- `make` or `make help` shows the workflows; `make build` produces the static binary in
   `bin/`, and `make check` runs gofmt, vet, and the tests.
+
+The entry-point `Makefile` loads configuration and rules from `configure/`.
+`RELEASE` defines project identity and the embedded version; `CONFIG_SITE`
+selects tools, the output path, and test scope; `CONFIG_VARS` derives build
+settings. `RULES_BUILD`, `RULES_INSTALL`, `RULES_CHECK`, `RULES_HELP`, and `RULES_VARS` provide
+the targets, using common definitions from `RULES_FUNC`.
+
+Use `make -C <repository> help` for common workflows and `help.detail` for the
+full target reference. `vars` prints effective settings (`FILTER=GO` selects
+a prefix); `PRINT.GO` also reports a variable's origin. `VERBOSE=1` displays
+recipe commands, and `DEBUG_SHELL=1` enables shell tracing.
+
+Local settings belong in `configure/CONFIG_SITE.local` or
+`configure/RELEASE.local`, both ignored by Git. Matching files in the parent
+directory load first; command-line assignments take precedence. Supported
+settings include `GO`, `GOFMT`, `BIN`, `PKG`, `TEST_FLAGS`, and `VERSION`.
+The selected Go toolchain supplies gofmt and enforces the minimum in `go.mod`.
+`test` and `race` accept `TEST_FLAGS=-count=1` to bypass the Go test cache.
+Builds use `CGO_ENABLED=0`; only `race` enables cgo and requires a C compiler.
+`clean` removes only the file selected by `BIN`, leaving its directory intact.
+
+Local installation defaults to `$HOME/.local/bin/wirepup`, without sudo.
+Use `install.dry-run` to preview, `install` (an alias of `install.apply`) to
+build and install, and `install.check` to verify the executable, version,
+and active PATH. Set `INSTALL_LOCATION` to change the installation prefix;
+pass the same value to all three operations. `INSTALL` selects the GNU
+coreutils install command. Installation refuses a symlink or directory at
+the executable destination.
+
+If `$HOME/.local/bin` is absent from PATH or another wirepup takes precedence,
+`install.check` fails and prints the PATH activation command.
 
 ## Core goals
 
@@ -240,6 +271,7 @@ wirepup/
 │   ├── cross-review.md
 │   └── full-repository-review.md
 ├── Makefile
+├── configure/               # build configuration and target rules
 ├── go.mod
 ├── cmd/wirepup/          # CLI entry point
 ├── internal/             # capture, decode, protocol parsers, device, diagnose, output, active, networkcfg, tui

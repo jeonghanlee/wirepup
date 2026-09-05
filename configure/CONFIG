@@ -1,0 +1,5 @@
+VARS_EXCLUDES := $(.VARIABLES)
+
+include $(TOP)/configure/RELEASE
+include $(TOP)/configure/CONFIG_SITE
+include $(TOP)/configure/CONFIG_VARS

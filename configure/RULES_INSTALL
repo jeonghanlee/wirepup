@@ -1,0 +1,25 @@
+.PHONY: install install.dry-run install.apply install.check install.preflight
+
+# Check before any build in a combined build/install invocation.
+ifneq ($(filter install install.apply,$(MAKECMDGOALS)),)
+build: install.preflight
+endif
+
+install.preflight:
+	$(QUIET) $(INSTALL_ENV) bash $(call shell_quote,$(INSTALL_TOOL)) preflight $(INSTALL_ARGS)
+
+##@ Installation
+## Build and install for the current user (alias of install.apply)
+install: install.apply
+
+## Preview local installation without changing files
+install.dry-run:
+	$(QUIET) $(INSTALL_ENV) bash $(call shell_quote,$(INSTALL_TOOL)) dry-run $(INSTALL_ARGS)
+
+## Build and install under INSTALL_LOCATION/bin
+install.apply: install.preflight build
+	$(QUIET) $(INSTALL_ENV) bash $(call shell_quote,$(INSTALL_TOOL)) apply $(INSTALL_ARGS)
+
+## Verify the installed executable, version, and active PATH
+install.check:
+	$(QUIET) $(INSTALL_ENV) bash $(call shell_quote,$(INSTALL_TOOL)) check $(INSTALL_ARGS)
