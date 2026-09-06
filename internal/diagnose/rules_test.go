@@ -87,7 +87,7 @@ func TestCARules(t *testing.T) {
 func TestPVARulesAndRestart(t *testing.T) {
 	g1 := [12]byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
 	g2 := [12]byte{2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}
-	search := fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, 5076, 40000, pva.SearchDatagram(1, 1, "MISSING:PV", true, false))
+	search := fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, 5076, 40000, pva.SearchDatagram(1, 1, "MISSING:PV", true, false, 0))
 	b1 := fixtures.IPv4UDP(fixtures.Broadcast, fixtures.ServerMAC, caBcast, caServer, 5076, 5076, pva.BeaconDatagram(g1, 1, 1, netip.Addr{}, 5075))
 	b2 := fixtures.IPv4UDP(fixtures.Broadcast, fixtures.ServerMAC, caBcast, caServer, 5076, 5076, pva.BeaconDatagram(g2, 1, 1, netip.Addr{}, 5075))
 	tbl := tableFrom(t, search, b1, b2)

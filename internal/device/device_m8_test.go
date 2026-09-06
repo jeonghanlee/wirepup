@@ -10,10 +10,10 @@ import (
 
 func TestPVASearchResponseCorrelationByGUID(t *testing.T) {
 	guid := [12]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
-	search := fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, pva.DefaultUDPPort, 40000, pva.SearchDatagram(5, 77, "MPS:SYS:STATE", true, false))
+	search := fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, pva.DefaultUDPPort, 40000, pva.SearchDatagram(5, 77, "MPS:SYS:STATE", true, false, 0))
 	reply := fixtures.IPv4UDP(fixtures.LaptopMAC, fixtures.ServerMAC, caClient, caServer, 40000, pva.DefaultUDPPort, pva.SearchResponseDatagram(guid, 5, netip.Addr{}, 5075, true, []int32{77}))
 	beacon := fixtures.IPv4UDP(fixtures.Broadcast, fixtures.ServerMAC, caBcast, caServer, pva.DefaultUDPPort, pva.DefaultUDPPort, pva.BeaconDatagram(guid, 1, 2, netip.Addr{}, 5075))
-	missing := fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, pva.DefaultUDPPort, 40000, pva.SearchDatagram(6, 78, "MISSING:PV", true, false))
+	missing := fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, pva.DefaultUDPPort, 40000, pva.SearchDatagram(6, 78, "MISSING:PV", true, false, 0))
 	tbl := New(Options{})
 	run(t, tbl, search, reply, beacon, missing)
 	ss := tbl.PVASearches()

@@ -14,7 +14,7 @@ var (
 )
 
 func TestSearchRoundTrip(t *testing.T) {
-	b := SearchDatagram(5, 77, "MPS:SYS:STATE", true, false)
+	b := SearchDatagram(5, 77, "MPS:SYS:STATE", true, false, 0)
 	msgs, err := Parse(b)
 	if err != nil || len(msgs) != 1 {
 		t.Fatalf("%v %d", err, len(msgs))
@@ -105,7 +105,7 @@ func TestHeaderErrors(t *testing.T) {
 
 func TestTruncatedPayloadsMarkMalformedWithoutPanic(t *testing.T) {
 	for _, full := range [][]byte{
-		SearchDatagram(1, 2, "A:B", true, true),
+		SearchDatagram(1, 2, "A:B", true, true, 0),
 		SearchResponseDatagram(guid, 1, server, 5075, true, []int32{2}),
 		BeaconDatagram(guid, 1, 1, server, 5075),
 		ValidationRequest(1, 1, []string{"anonymous"}),
@@ -126,7 +126,7 @@ func TestTruncatedPayloadsMarkMalformedWithoutPanic(t *testing.T) {
 		}
 	}
 	// A huge declared size must not allocate or panic.
-	bad := SearchDatagram(1, 2, "A:B", true, false)
+	bad := SearchDatagram(1, 2, "A:B", true, false, 0)
 	bad[HeaderLen+4+1+3+16+2] = sizeLong // protocols count
 	Parse(bad)
 	msgs, _ := Parse(bad)

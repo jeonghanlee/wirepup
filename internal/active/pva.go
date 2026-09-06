@@ -54,7 +54,7 @@ func PVASearch(ctx context.Context, pv string, dests []Destination, seq, instanc
 			return res, ctx.Err()
 		}
 		// The search flag states how this datagram is sent (see Destination).
-		if _, err := conn.WriteToUDPAddrPort(pva.SearchDatagram(seq, instance, pv, true, !d.Broadcast), d.AddrPort); err != nil {
+		if _, err := conn.WriteToUDPAddrPort(pva.SearchDatagram(seq, instance, pv, true, !d.Broadcast, conn.LocalAddr().(*net.UDPAddr).AddrPort().Port()), d.AddrPort); err != nil {
 			return res, fmt.Errorf("active: send to %s: %w", d.AddrPort, err)
 		}
 		res.Sent = append(res.Sent, d.AddrPort)

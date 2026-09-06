@@ -42,7 +42,8 @@ func TestPVASearchAgainstLoopbackServer(t *testing.T) {
 				for _, ch := range o.Channels {
 					found := ch.Name == "LAB:EXISTS"
 					if found || o.ReplyRequired {
-						srv.WriteToUDPAddrPort(pva.SearchResponseDatagram(guid, o.SequenceID, netip.Addr{}, 5075, found, []int32{ch.ID}), from)
+						// Real servers use the advertised response port, not the source port.
+						srv.WriteToUDPAddrPort(pva.SearchResponseDatagram(guid, o.SequenceID, netip.Addr{}, 5075, found, []int32{ch.ID}), netip.AddrPortFrom(from.Addr(), o.ResponsePort))
 					}
 				}
 			}

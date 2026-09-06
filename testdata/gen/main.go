@@ -103,9 +103,9 @@ func fixtureSet() []fixture {
 			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.ServerMAC, caBcast, caServer, ca.DefaultRepeaterPort, 5064, ca.BeaconDatagram(5064, 101, caServer)),
 		}},
 		{"pva-search-response", [][]byte{
-			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, pva.DefaultUDPPort, 40000, pva.SearchDatagram(1, 1, "MPS:SYS:STATE", true, false)),
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, pva.DefaultUDPPort, 40000, pva.SearchDatagram(1, 1, "MPS:SYS:STATE", true, false, 0)),
 			fixtures.IPv4UDP(fixtures.LaptopMAC, fixtures.ServerMAC, caClient, caServer, 40000, pva.DefaultUDPPort, pva.SearchResponseDatagram(pvaGUID, 1, netip.Addr{}, pva.DefaultTCPPort, true, []int32{1})),
-			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, pva.DefaultUDPPort, 40000, pva.SearchDatagram(2, 2, "MISSING:PV", true, false)),
+			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.LaptopMAC, caBcast, caClient, pva.DefaultUDPPort, 40000, pva.SearchDatagram(2, 2, "MISSING:PV", true, false, 0)),
 		}},
 		{"pva-beacon", [][]byte{
 			fixtures.IPv4UDP(fixtures.Broadcast, fixtures.ServerMAC, caBcast, caServer, pva.DefaultUDPPort, pva.DefaultUDPPort, pva.BeaconDatagram(pvaGUID, 1, 5, netip.Addr{}, pva.DefaultTCPPort)),

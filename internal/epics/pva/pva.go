@@ -530,7 +530,8 @@ func frame(cmd uint8, fromServer bool, payload []byte) []byte {
 }
 
 // SearchDatagram builds a big-endian search request for one channel.
-func SearchDatagram(seq int32, id int32, name string, replyRequired, unicast bool) []byte {
+// responsePort is the client's bound UDP receive port (CMD_SEARCH).
+func SearchDatagram(seq int32, id int32, name string, replyRequired, unicast bool, responsePort uint16) []byte {
 	var w writer
 	w.int32(seq)
 	flags := uint8(0)
@@ -543,7 +544,7 @@ func SearchDatagram(seq int32, id int32, name string, replyRequired, unicast boo
 	w.byte(flags)
 	w.b = append(w.b, 0, 0, 0)
 	w.addr(netip.Addr{})
-	w.uint16(0)
+	w.uint16(responsePort)
 	w.size(1)
 	w.str("tcp")
 	w.uint16(1)
