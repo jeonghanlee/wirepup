@@ -164,6 +164,32 @@ wirepup disconnect    # remove WirePup-created temporary configuration
 
 Passive commands must never transmit packets or change the host configuration.
 
+## Which command do I need?
+
+Start with the [tested usage scenarios](docs/usage-scenarios.md), or look up
+defaults and applicability in the [option reference](docs/cli-reference.md).
+The [VM test results](docs/vm-test-results.md) distinguish executed scenarios
+from features and environments that still need implementation or validation.
+
+| Situation | Command | Transmits? |
+| --- | --- | --- |
+| List the local interfaces | `interfaces` | no |
+| Find a device whose IP is unknown | `discover` | no |
+| Watch the live event stream | `observe` | no |
+| Watch everything in one interactive screen | `tui` | no |
+| Save traffic for later or for Wireshark | `capture` | no |
+| Replay and analyze a capture file offline | `read` | no |
+| Explain why a target is unreachable | `diagnose` | no |
+| Track a CA or PVA PV that will not connect | `epics find` | no (`--active` sends one CA and one PVA search per destination) |
+| Sweep a subnet with ARP to find live hosts | `probe` | yes (ARP) |
+| Add a temporary address to reach another subnet | `connect` | yes (ARP probe + host change) |
+| Remove a temporary address WirePup added | `disconnect` | yes (host change) |
+
+The bottom three change the host or transmit: `probe` and `connect` ask
+before acting unless `--yes`; `disconnect` removes only the addresses
+WirePup recorded. `epics find --active` also transmits after confirmation
+unless `--yes`. The remaining modes are passive.
+
 ## Example: unknown device
 
 ```text
@@ -243,6 +269,48 @@ PV          MPS:SYS:STATE
 ```
 
 The default PVA UDP search/broadcast port is 5076 and the default PVA TCP server port is 5075, unless overridden.
+
+## Example: temporary address to reach another subnet (active)
+
+```text
+$ sudo wirepup connect 192.168.1.100 -i enp3s0
+
+Observing enp3s0 for 5s (passive: nothing is transmitted)...
+
+Diagnosis
+  Target 192.168.1.100 is outside every local IPv4 subnet on enp3s0.
+
+Recommended
+  add 192.168.1.254/24 to enp3s0 after an ARP probe:
+  ip address add 192.168.1.254/24 dev enp3s0
+
+ACTIVE: will send 3 ARP probes for 192.168.1.254 on enp3s0, then run the command above.
+Proceed? [y/N]
+```
+
+`connect` is one of the three active commands: it observes passively first,
+prints the exact `ip` command it intends to run, ARP-probes the candidate,
+and refuses (exit 6) if anything answers. Nothing changes without the
+confirmation or `--yes`. `wirepup disconnect` later removes only what WirePup
+added.
+
+## Example: interactive view (TUI)
+
+```text
+$ sudo wirepup tui -i enp3s0
+
+WirePup enp3s0   [1 Devices] 2 Events  3 EPICS  4 Interfaces  5 Diagnostics
+--------------------------------------------------------------------------
+MAC                IPv4             VENDOR (hint)      PROTOCOLS      LAST
+00:80:f4:12:34:56  169.254.22.31    Rockwell (hint)    arp            12:31:07
+00:1c:73:00:00:02  10.20.4.31       Arista (hint)      epics.ca       12:31:09
+--------------------------------------------------------------------------
+q quit  Tab/1-5 view  j/k space scroll  r top
+```
+
+Passive. Five views over the same pipeline as the text commands: `Tab` or
+`1`-`5` switch views, `j`/`k` scroll, space by ten, `r` returns to the top,
+`q` leaves. `wirepup tui --pcap issue.pcap` replays a capture the same way.
 
 ## Repository layout
 

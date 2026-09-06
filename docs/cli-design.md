@@ -1,5 +1,19 @@
 # CLI Design
 
+For defaults, option applicability, combinations, and current edge behavior, see the [command and option reference](cli-reference.md).
+
+## Execution modes
+
+Current direct execution uses `wirepup <command> [options]`. Bare invocation prints usage to stderr and exits 2; interactive guidance is not implemented yet.
+
+The guided entry contract is:
+
+- Bare invocation with terminal stdin and stdout enters purpose-based guidance. If either stream is not a terminal, print usage to stderr and exit 2 without waiting for input.
+- Explicit commands and help always use direct dispatch, preserving existing output, exit status, and confirmation behavior. Invalid explicit arguments return an error instead of silently opening guidance.
+- Guidance asks only for missing context, starts passively, interprets existing findings, and shows an equivalent explicit command for repeat use.
+- The guide shows and confirms each proposed transmission or host configuration change before calling the existing operation. Cancellation, EOF, and interruption must not authorize a subsequent active action.
+- Guidance reuses existing command operations and evidence. It does not create an independent decoder or diagnosis engine.
+
 ## Goal
 
 The CLI must make it obvious whether a command:
