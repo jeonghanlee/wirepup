@@ -9,10 +9,10 @@ install.preflight:
 	$(QUIET) $(INSTALL_ENV) bash $(call shell_quote,$(INSTALL_TOOL)) preflight $(INSTALL_ARGS)
 
 ##@ Installation
-## Build and install for the current user (alias of install.apply)
+## Build and install at INSTALL_LOCATION (alias of install.apply)
 install: install.apply
 
-## Preview local installation without changing files
+## Preview the installation path and required privileges
 install.dry-run:
 	$(QUIET) $(INSTALL_ENV) bash $(call shell_quote,$(INSTALL_TOOL)) dry-run $(INSTALL_ARGS)
 

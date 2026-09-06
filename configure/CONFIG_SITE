@@ -6,6 +6,7 @@ PKG ?= ./...
 TEST_FLAGS ?=
 INSTALL ?= install
 INSTALL_LOCATION ?= $(HOME)/.local
+INSTALL_FORCE ?= 0
 
 -include $(TOP)/../CONFIG_SITE.local
 -include $(TOP)/configure/CONFIG_SITE.local

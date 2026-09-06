@@ -138,3 +138,33 @@ Scenarios:
 CI should run parser/correlation/diagnosis tests unprivileged.
 
 Privileged capture/network-config tests should be optional and clearly separated.
+
+## 10. Installation tests
+
+From the repository, `bash tests/install.bash` builds and installs into a temporary
+user-owned prefix, then checks the bytes, mode, PATH selection, spaces in paths,
+and symlink refusal. It requires Go, Make, Bash, and GNU coreutils.
+
+`python3 tests/install-confirmation.py` also requires Python 3 on Linux. It builds two
+versions of WirePup and runs the real `make install` target through a PTY:
+`y` replaces the old version; `n`, Enter, and EOF preserve it. Non-interactive
+replacement must fail unless `INSTALL_FORCE=1` explicitly approves it.
+It also creates a destination after the initial consent check and verifies that
+installation refuses to overwrite it.
+
+For the isolated Linux VM test, first produce a distinct previous executable:
+`make build BIN=bin/wirepup.previous VERSION=install-test-previous`.
+Copy `bin/wirepup`, `bin/wirepup.previous`, `tools/install-wirepup.bash`,
+`tools/install-system-wirepup.bash`, `tests/install-confirmation.py`, and `tests/install.bash` with their relative
+paths intact. Run `bash tests/install.bash --system` as a normal user with
+non-interactive sudo and Python 3. This uses the two prebuilt executables and the real installation
+driver, without rebuilding on the VM. It creates a temporary root-owned prefix
+under `/opt`, tests the protected copy and failure preservation, and removes that
+prefix on success. Existing `/usr/local/bin/wirepup` is not changed. Failed tests
+retain their temporary paths for inspection. These tests run separately from
+`make check` and do not capture or transmit network traffic.
+
+The system test also requires util-linux (`unshare`, `mount`, `umount`, `runuser`).
+In a private mount namespace it checks that a `noexec` destination preserves the
+previous executable and that a `noexec` `TMPDIR` permits installation elsewhere.
+The temporary mount is removed before the namespace exits.

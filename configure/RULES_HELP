@@ -11,7 +11,12 @@ help:
 	    'Build' 'make build' \
 	    'Preview install' 'make install.dry-run' \
 	    'Install' 'make install' \
-	    'Verify install' 'make install.check'
+	    'Verify install' 'make install.check' \
+	    'Preview system' 'make install.dry-run INSTALL_LOCATION=/usr/local' \
+	    'Install system' 'make install INSTALL_LOCATION=/usr/local' \
+	    'Verify system' 'make install.check INSTALL_LOCATION=/usr/local'
+	$(QUIET) printf '\n%s\n' 'Installation uses sudo only when the destination requires it; do not run sudo make.'
+	$(QUIET) printf '%s\n' 'Existing files require confirmation. For explicitly approved automation: INSTALL_FORCE=1.'
 	$(QUIET) printf '\n%s\n' 'Details: make help.detail'
 	$(QUIET) :
 

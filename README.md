@@ -62,11 +62,49 @@ Use `install.dry-run` to preview, `install` (an alias of `install.apply`) to
 build and install, and `install.check` to verify the executable, version,
 and active PATH. Set `INSTALL_LOCATION` to change the installation prefix;
 pass the same value to all three operations. `INSTALL` selects the GNU
-coreutils install command. Installation refuses a symlink or directory at
+coreutils install command for writable destinations. Installation refuses a symlink or non-regular file at
 the executable destination.
+
+If the destination file already exists, installation asks
+`Replace this file? [y/N]` before changing it. Enter, `n`, or EOF cancels the
+installation with a non-zero exit status and preserves the existing file.
+Without an interactive terminal, replacement is refused. For automation,
+explicitly approve replacement with `make install INSTALL_FORCE=1` (and the
+same `INSTALL_LOCATION` as before). A new destination needs no confirmation.
 
 If `$HOME/.local/bin` is absent from PATH or another wirepup takes precedence,
 `install.check` fails and prints the PATH activation command.
+
+For a system installation at `/usr/local/bin/wirepup`, run these commands
+as your normal user from the repository directory:
+
+```bash
+make install.dry-run INSTALL_LOCATION=/usr/local
+make install INSTALL_LOCATION=/usr/local
+make install.check INSTALL_LOCATION=/usr/local
+sudo wirepup version
+```
+
+Installation selects sudo when the destination directory is not writable.
+Only the file copy uses sudo, which may ask for your password;
+the build and version checks run as your normal user. Do not run `sudo make`.
+The protected copy installs a root-owned executable with mode `0755` and requires
+root-owned parent directories without group or other write permission or symlinks.
+The invoking user must be able to traverse those directories to verify the result.
+It uses system tools; custom `INSTALL` commands apply only to writable destinations.
+The copy's SHA-256 digest must match the executable snapshot verified before sudo;
+an incomplete or changed copy does not replace the existing installation.
+The verification snapshot is created beside the resolved build output, so a
+`noexec` setting on `TMPDIR` does not prevent installation. That build directory
+must be writable by the invoking user. Before replacement, the protected copy
+checks execution permission on its staged file and refuses a `noexec` destination
+while preserving the existing file.
+
+`install.check` checks your current PATH; `sudo wirepup version` separately checks
+sudo's command lookup. An older `$HOME/.local/bin/wirepup` can still take precedence
+in your shell. To select the system installation, use `export PATH=/usr/local/bin:$PATH`
+and run `make install.check INSTALL_LOCATION=/usr/local` again. If sudo does not
+search `/usr/local/bin`, use `sudo /usr/local/bin/wirepup version`.
 
 ## Core goals
 
