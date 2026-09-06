@@ -1,5 +1,11 @@
 # Work Register
 
+## Scope
+
+This document tracks WirePup work, dependencies, verification, and completion evidence on master.
+
+**Out of scope:** command usage and test procedures. See the [option reference](cli-reference.md), [usage scenarios](usage-scenarios.md), and [testing guide](testing.md).
+
 Release line: master
 Milestone index: 182961f
 Canonical path: `docs/milestone-182961f.md`
@@ -7,7 +13,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: M18's option reference and direct CLI regression coverage are implemented and locally verified; commit and upstream landing evidence remain pending. M21 has partial direct-scenario evidence from the dedicated Debian VM; guidance/completion walkthroughs remain pending. M19, M20 and M22 have not started.
+Next session entry point: `docs/milestone-182961f.md`: M18 is Complete, including Go 1.25.0 verification and upstream landing. Review and accept the M19 guidance plan before implementation. M20's dependencies are also complete; its plan remains draft. M21 has partial direct-scenario evidence; guidance/completion walkthroughs remain pending. M22 has not started.
 
 ## Milestone
 
@@ -32,11 +38,13 @@ Next session entry point: `docs/milestone-182961f.md`: M18's option reference an
 | vocabulary | M15 | Oper-state unknown sentinel named once | Milestone | Complete | No | D4 | `interfaces.OperStateUnknown` mirrored as `output.OperStateUnknown`; `text` and `tui` compare against it; [detail](#m15---oper-state-unknown-sentinel-named-once) |
 | rules | M16 | diagnose --epics reports the absence of EPICS traffic | Milestone | Complete | No | D2 | one Inferred finding under `--epics` when no CA/PVA record exists; golden added; [detail](#m16---diagnose---epics-reports-the-absence-of-epics-traffic) |
 | contract | M17 | Aggregate unanswered-search findings carry no data keys | Milestone | Complete | No | D4, D5 | own codes `ca-searches-no-response`/`pva-searches-no-response` with a `searches` key; [detail](#m17---aggregate-unanswered-search-findings-carry-no-data-keys) |
-| cli | M18 | Direct execution and option reference | Milestone | In progress | No | D6 | Existing script behavior preserved; every option documented against the implementation; [detail](#m18---direct-execution-and-option-reference) |
-| cli | M19 | Guided execution from observed results | Milestone | Not started | No | D6, M18 | Bare terminal invocation guides the user through the existing operations and explains next actions; [detail](#m19---guided-execution-from-observed-results) |
-| shell | M20 | Bash completion and installation | Milestone | Not started | No | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
+| cli | M18 | Direct execution and option reference | Milestone | Complete | No | D6 | Existing script behavior preserved; every option documented against the implementation; [detail](#m18---direct-execution-and-option-reference) |
+| cli | M19 | Guided execution from observed results | Milestone | Not started | Yes | D6, M18 | Bare terminal invocation guides the user through the existing operations and explains next actions; [detail](#m19---guided-execution-from-observed-results) |
+| shell | M20 | Bash completion and installation | Milestone | Not started | Yes | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
 | docs | M21 | Executable scenarios and bidirectional option links | Milestone | In progress | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
 | docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Not started | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
+
+Status totals: 18 Complete, 1 In progress, 3 Not started. Ready: M19 and M20; plan acceptance and implementation authorization remain separate requirements. No Backlog rows.
 
 ### Decisions
 
@@ -1023,7 +1031,7 @@ Superseded Plan Artifacts: none
 Origin: 182961f / M18
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1069,14 +1077,20 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-09-05T17:54Z | Debian 13, linux/amd64, Go 1.26.7 | Pass on the installed toolchain | `make check TEST_FLAGS=-count=1` passed with host access for existing netlink tests. `TestDirectInvocationNonTerminal` builds and executes the real CLI with closed stdin, checks nine argument/confirmation cases, and compares three outputs to shipped goldens. `TestGoldenJSON` also passed; no golden changed. Exact Go 1.25 execution was not performed. |
-| T2 | 2026-09-05T17:54Z | Current source and built CLI | Pass | `TestCLIReferenceCoversCommandHelp` checks each registered flag against an option heading in `docs/cli-reference.md`. Self-review compared defaults and applicability against consumers, distinguished current direct behavior from planned guidance, and checked the text from the reader's perspective. All 39 local links resolve; new reference/test files are ASCII; `git diff --check` passed. |
+| T1 | 2026-09-06T07:59:49Z | Debian 13.6, linux/amd64, Go 1.25.0 | Pass | Formatting, vet, and all 24 tested packages; real CLI and golden checks described below. |
+| T2 | 2026-09-06 | Source and built CLI at `1e2d816` | Pass | Registered-option coverage and 46 local links checked; accepted reference unchanged. |
+
+T1: `GOTOOLCHAIN=go1.25.0 make check TEST_FLAGS=-count=1` exited 0. `GOTOOLCHAIN=go1.25.0 go version` confirmed the exact minimum version from `go.mod`. `TestDirectInvocationNonTerminal` built the real CLI, exercised nine argument/confirmation cases with closed stdin, and compared three outputs to shipped goldens. Existing golden tests passed without changing their files. The earlier Go 1.26.7 run passed on 2026-09-05.
+
+T2: `TestCLIReferenceCoversCommandHelp` passed against actual command help. The reference and execution-mode contract are unchanged from the review accepted on 2026-09-05; production CLI files are also unchanged since `b708e25`. All 45 local links in `docs/cli-reference.md` and the one local link in `docs/cli-design.md` resolve, including their Markdown heading anchors.
 
 ##### Closure Evidence
 
-- Deliverables: `docs/cli-reference.md`, the execution-mode contract in `docs/cli-design.md`, and `cmd/wirepup/cli_reference_test.go`.
+- Deliverables: [option reference](cli-reference.md), [execution-mode contract](cli-design.md#execution-modes), and [direct CLI regression tests](../cmd/wirepup/cli_reference_test.go).
 - Local review accepted on 2026-09-05: no remaining must-fix or minor finding in the M18 scope. Production command behavior is unchanged; guidance and completion remain outside this milestone.
-- Commit and upstream landing evidence pending. Status remains In progress. Verification used Go 1.26.7 rather than an exact minimum-version toolchain.
+- Implementation commit: `b708e253cbe48dd481877642efd9351258712993`.
+- Upstream observed at 2026-09-06T08:00:25Z: after `git fetch origin`, `origin/master` was `1e2d8167cf615e13d83a77008609fea356e1c7ef`. The implementation commit is an ancestor of that ref, and the three deliverables have no diff against the fetched upstream.
+- Completed on 2026-09-06: T1 and T2 passed, deliverables landed upstream, and no external gate or linked issue remains.
 
 #### M19 - Guided execution from observed results
 
