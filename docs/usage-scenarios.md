@@ -14,9 +14,7 @@ No VM or root access is needed. From the repository root:
 
 ```bash
 make build
-mkdir -p work/vm-example
-tar -xzf tests/vm/evidence/2026-09-05/main.tar.gz -C work/vm-example
-bin/wirepup epics find WP:VALUE --pcap work/vm-example/epics-reads.pcap
+bin/wirepup epics find WP:VALUE --pcap tests/vm/pcap/epics-reads.pcap
 ```
 
 **Check:** the report identifies CA and PVA servers that answered for

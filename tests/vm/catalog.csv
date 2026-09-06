@@ -1,0 +1,18 @@
+id,scenario,method
+V01,VM and installed binary,real-path
+V02,Isolated network,real-path
+V03,Live ARP capture and replay,real-path
+V04,ARP sweep response,real-path
+V05,Address assignment and selective removal,real-path
+V06,Occupied address refused,real-path
+V07,Automatic address recommendation,real-path
+V08,Passive command transmission count,real-path
+V09,DHCP lease exchange,real-path
+V10,DHCP no offer and Auto-IP,real-path
+V11,Real IOC CA and PVA reads,real-path
+V12,Active CA and PVA search,real-path
+V13,Duplicate IOC servers,real-path
+V14,Missing PV diagnosis,real-path
+V15,Interrupted capture and connection,real-path
+V16,Reboot recovery,real-path
+V17,Guided entry,real-path

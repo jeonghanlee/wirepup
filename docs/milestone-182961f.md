@@ -7,7 +7,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: review the draft M18 plan against `cmd/wirepup` and `docs/cli-design.md`. M18 is dependency-ready; M18-M22 implementation has not started.
+Next session entry point: `docs/milestone-182961f.md`: M18's option reference and direct CLI regression coverage are implemented and locally verified; commit and upstream landing evidence remain pending. M21 has partial direct-scenario evidence from the dedicated Debian VM; guidance/completion walkthroughs remain pending. M19, M20 and M22 have not started.
 
 ## Milestone
 
@@ -32,10 +32,10 @@ Next session entry point: `docs/milestone-182961f.md`: review the draft M18 plan
 | vocabulary | M15 | Oper-state unknown sentinel named once | Milestone | Complete | No | D4 | `interfaces.OperStateUnknown` mirrored as `output.OperStateUnknown`; `text` and `tui` compare against it; [detail](#m15---oper-state-unknown-sentinel-named-once) |
 | rules | M16 | diagnose --epics reports the absence of EPICS traffic | Milestone | Complete | No | D2 | one Inferred finding under `--epics` when no CA/PVA record exists; golden added; [detail](#m16---diagnose---epics-reports-the-absence-of-epics-traffic) |
 | contract | M17 | Aggregate unanswered-search findings carry no data keys | Milestone | Complete | No | D4, D5 | own codes `ca-searches-no-response`/`pva-searches-no-response` with a `searches` key; [detail](#m17---aggregate-unanswered-search-findings-carry-no-data-keys) |
-| cli | M18 | Direct execution and option reference | Milestone | Not started | Yes | D6 | Existing script behavior preserved; every option documented against the implementation; [detail](#m18---direct-execution-and-option-reference) |
+| cli | M18 | Direct execution and option reference | Milestone | In progress | No | D6 | Existing script behavior preserved; every option documented against the implementation; [detail](#m18---direct-execution-and-option-reference) |
 | cli | M19 | Guided execution from observed results | Milestone | Not started | No | D6, M18 | Bare terminal invocation guides the user through the existing operations and explains next actions; [detail](#m19---guided-execution-from-observed-results) |
 | shell | M20 | Bash completion and installation | Milestone | Not started | No | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
-| docs | M21 | Executable scenarios and bidirectional option links | Milestone | Not started | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
+| docs | M21 | Executable scenarios and bidirectional option links | Milestone | In progress | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
 | docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Not started | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
 
 ### Decisions
@@ -1023,7 +1023,7 @@ Superseded Plan Artifacts: none
 Origin: 182961f / M18
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1049,9 +1049,9 @@ Out of scope: implementing guidance or completion, new protocol behavior, or cha
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-05, proceed with the recorded M18 plan
+Implementation Authorization: 2026-09-05, proceed with M18
 Superseded Plan Artifacts: none
 
 1. Inventory command registrations, option consumers, and existing CLI tests.
@@ -1069,12 +1069,14 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Debian 13 | Pending | none |
-| T2 | Not run | Source and built CLI | Pending | none |
+| T1 | 2026-09-05T17:54Z | Debian 13, linux/amd64, Go 1.26.7 | Pass on the installed toolchain | `make check TEST_FLAGS=-count=1` passed with host access for existing netlink tests. `TestDirectInvocationNonTerminal` builds and executes the real CLI with closed stdin, checks nine argument/confirmation cases, and compares three outputs to shipped goldens. `TestGoldenJSON` also passed; no golden changed. Exact Go 1.25 execution was not performed. |
+| T2 | 2026-09-05T17:54Z | Current source and built CLI | Pass | `TestCLIReferenceCoversCommandHelp` checks each registered flag against an option heading in `docs/cli-reference.md`. Self-review compared defaults and applicability against consumers, distinguished current direct behavior from planned guidance, and checked the text from the reader's perspective. All 39 local links resolve; new reference/test files are ASCII; `git diff --check` passed. |
 
 ##### Closure Evidence
 
-- none
+- Deliverables: `docs/cli-reference.md`, the execution-mode contract in `docs/cli-design.md`, and `cmd/wirepup/cli_reference_test.go`.
+- Local review accepted on 2026-09-05: no remaining must-fix or minor finding in the M18 scope. Production command behavior is unchanged; guidance and completion remain outside this milestone.
+- Commit and upstream landing evidence pending. Status remains In progress. Verification used Go 1.26.7 rather than an exact minimum-version toolchain.
 
 #### M19 - Guided execution from observed results
 
@@ -1202,7 +1204,7 @@ Superseded Plan Artifacts: none
 Origin: 182961f / M21
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1232,12 +1234,14 @@ Out of scope: new diagnosis behavior or claiming live validation from an offline
 
 Plan Status: draft
 Plan Acceptance: none
-Implementation Authorization: none
+Implementation Authorization: 2026-09-05 - execute the available scenarios, retain test records, and strengthen actual examples. Guidance and completion remain dependent on M19/M20.
 Superseded Plan Artifacts: none
 
 1. Build the scenario inventory and option-to-scenario coverage map from M18.
 2. Write and execute offline cases, guided equivalents, and completion examples.
 3. Validate live procedures in the isolated lab and publish interpretation and cleanup instructions.
+
+Direct-scenario subset implemented in `docs/usage-scenarios.md`, `docs/cli-reference.md`, and `tests/vm/`. The broader plan remains draft until guided/completion walkthroughs can be defined from M19/M20. This partial execution is not milestone closure.
 
 ##### Test Plan
 
@@ -1251,9 +1255,9 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Debian 13 | Pending | none |
-| T2 | Not run | Markdown and built CLI | Pending | none |
-| T3 | Not run | Linux namespace lab and PTY | Pending | none |
+| T1 | 2026-09-05 | Debian 13 VM and source checkout | Partial: real captured CA/PVA and DHCP walkthroughs replayed; guided equivalents pending | `docs/vm-test-results.md`; `TestRecordedVMCaptures` |
+| T2 | 2026-09-05 | Markdown and built CLI | Partial: tested direct scenarios linked both ways; all-option, guidance and completion coverage pending | `docs/usage-scenarios.md`; `docs/cli-reference.md` |
+| T3 | 2026-09-05 | Dedicated Debian 13 VM with isolated namespaces | Partial: 16 live checks pass; TUI/PTY walkthrough not run; guide absent | `docs/vm-test-results.md`; detailed records retained locally |
 
 ##### Closure Evidence
 

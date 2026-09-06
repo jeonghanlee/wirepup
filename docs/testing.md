@@ -1,5 +1,10 @@
 # Testing Strategy
 
+The implemented [VM suite](../tests/vm/README.md) exercises live Linux and
+EPICS paths. Its [results and evidence](vm-test-results.md) distinguish passed,
+unimplemented and unverified scenarios. `TestRecordedVMCaptures` also replays
+the retained real captures during normal `make check`, without a VM or root.
+
 ## 1. Principles
 
 Most protocol logic must be testable without root and without a live network.

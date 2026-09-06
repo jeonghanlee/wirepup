@@ -4,6 +4,11 @@
 
 This document plans the verification environment for WirePup from a developer's checkout to a release gate: the test suites, their execution boundaries, the reporting contract, the lab that exercises live capture and host changes, and the phases in which the environment is built.
 
+The [dedicated Debian VM suite](../tests/vm/README.md) now exercises a subset
+of this plan. See its [recorded results](vm-test-results.md). The shared
+reporting library, complete protocol matrix and multi-OS release gate described
+below remain planned; the focused VM suite does not claim their completion.
+
 **Out of scope:** the test strategy per layer (`docs/testing.md`), the release procedure itself (a future `gate/RUNBOOK.md`), and the hardware validation lab beyond the checklist it feeds.
 
 ## Basis

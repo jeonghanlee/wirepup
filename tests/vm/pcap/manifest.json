@@ -1,0 +1,17 @@
+{
+  "captured_at": "2026-09-05",
+  "environment": "Isolated Debian 13 VM with Linux, DHCP and EPICS peers",
+  "source_base_commit": "b5b70be9ace3e1db3290025df69738c71bc5949d",
+  "source_change_commit": "c9983300595e10abb3483896613288db959d448f",
+  "binary_sha256": "7d45baa7ed20598022345ef7192ce54934f461a48f518765aec971fcb5083973",
+  "files": {
+    "active-ca.pcap": "f7eca7a33a3d8a107f9b817856b3860cc01ecbb2c46a4052b421cdf6497dfc21",
+    "active-pva.pcap": "8cb0243d46b5ead740509c14872ac63f7bde06807a22140d33fc9b0cb4ecfa34",
+    "dhcp-no-offer.pcap": "d1701a4b6c7c68d8de2f351aaae0b137443cdbce3d2687982ff80bd8096bddb7",
+    "dhcp-success.pcap": "3573ad4b98135ea9355bb6b6b034c287b97e03fd4161cc1f61371a5191f625e8",
+    "duplicate-ca.pcap": "075d505e529cf43fcd378b8e39ed652f4a8678fdf81283b69538750e8e4ae294",
+    "duplicate-pva.pcap": "e3dc88650c1bab7b518bf957fab358de75275566d537fb12128093ced4006ca7",
+    "epics-reads.pcap": "4e57a2da9a20cafb2a9b7c5ac56d62163473df3b1c631e14cb383d576dab2dfc",
+    "missing-pv.pcap": "3e7c4616231daf83ea423f51b45ad1e2edd5e08996e03869b858dbc93c30b4f3"
+  }
+}
