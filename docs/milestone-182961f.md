@@ -13,7 +13,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: land the verified and reviewed M20 changes under separate commit/push authority. M19 guidance remains draft. M21 has partial direct-scenario evidence; guidance/completion walkthroughs remain pending. M22 has not started.
+Next session entry point: `docs/milestone-182961f.md`: M20 is Complete, including verification and upstream landing of implementation commit `0259eb3`. Review and accept the M19 guidance plan before implementation; record implementation authorization separately. M21 has partial direct-scenario evidence; guidance/completion walkthroughs remain pending. M22 has not started.
 
 ## Milestone
 
@@ -40,11 +40,11 @@ Next session entry point: `docs/milestone-182961f.md`: land the verified and rev
 | contract | M17 | Aggregate unanswered-search findings carry no data keys | Milestone | Complete | No | D4, D5 | own codes `ca-searches-no-response`/`pva-searches-no-response` with a `searches` key; [detail](#m17---aggregate-unanswered-search-findings-carry-no-data-keys) |
 | cli | M18 | Direct execution and option reference | Milestone | Complete | No | D6 | Existing script behavior preserved; every option documented against the implementation; [detail](#m18---direct-execution-and-option-reference) |
 | cli | M19 | Guided execution from observed results | Milestone | Not started | Yes | D6, M18 | Bare terminal invocation guides the user through the existing operations and explains next actions; [detail](#m19---guided-execution-from-observed-results) |
-| shell | M20 | Bash completion and installation | Milestone | In progress | No | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
+| shell | M20 | Bash completion and installation | Milestone | Complete | No | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
 | docs | M21 | Executable scenarios and bidirectional option links | Milestone | In progress | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
 | docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Not started | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
 
-Status totals: 18 Complete, 2 In progress, 2 Not started. Ready: M19; its plan acceptance and implementation authorization remain pending. No Backlog rows.
+Status totals: 19 Complete, 1 In progress, 2 Not started. Ready: M19; its plan acceptance and implementation authorization remain pending. No Backlog rows.
 
 ### Decisions
 
@@ -1159,7 +1159,7 @@ Superseded Plan Artifacts: none
 Origin: 182961f / M20
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1214,7 +1214,9 @@ Superseded Plan Artifacts: none
 
 - 2026-09-06: independent review accepted completion behavior, installation privilege boundaries and failure preservation, and reader-facing instructions after the reported defects were corrected and rechecked.
 - 2026-09-06: accepted follow-up corrections use `./` for dash-prefixed positional paths and require the registered completion function to be defined by the loaded file. Regression tests and local/VM installation checks passed.
-- Implementation, verification, and review are complete in the working tree. Commit/upstream landing remain pending; this milestone is not closed.
+- Implementation commit: `0259eb352c226b90f7307d14b8d414ca1cd6f8d6`.
+- Upstream observed at 2026-09-07T07:36:14Z: after `git fetch origin`, `origin/master` was `0259eb352c226b90f7307d14b8d414ca1cd6f8d6`. The implementation commit is an ancestor of that ref, and all 11 paths in the commit have no diff against the fetched upstream.
+- Completed on 2026-09-07: T1 and T2 passed, implementation and reader-facing corrections landed upstream, and no external gate or linked issue remains.
 
 #### M21 - Executable scenarios and bidirectional option links
 
