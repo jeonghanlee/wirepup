@@ -143,19 +143,27 @@ Privileged capture/network-config tests should be optional and clearly separated
 
 From the repository, `bash tests/install.bash` builds and installs into a temporary
 user-owned prefix, then checks the bytes, mode, PATH selection, spaces in paths,
-and symlink refusal. It requires Go, Make, Bash, and GNU coreutils.
+and symlink refusal. It checks completion bytes and mode, rejects missing completion,
+and runs real Tab tests against the installed files. It requires Go, Make, Bash,
+GNU coreutils, and Python 3 on Linux.
 
 `python3 tests/install-confirmation.py` also requires Python 3 on Linux. It builds two
 versions of WirePup and runs the real `make install` target through a PTY:
 `y` replaces the old version; `n`, Enter, and EOF preserve it. Non-interactive
 replacement must fail unless `INSTALL_FORCE=1` explicitly approves it.
+Accepting the binary replacement but declining completion must preserve both files.
+Build output targeting the installed completion must fail before the build changes it.
+A syntax-valid completion without a registration or its registered function must
+leave both installed files intact. `install.check` must also reject a missing
+handler, even when the parent shell exports a function with that name.
 It also creates a destination after the initial consent check and verifies that
 installation refuses to overwrite it.
 
 For the isolated Linux VM test, first produce a distinct previous executable:
 `make build BIN=bin/wirepup.previous VERSION=install-test-previous`.
-Copy `bin/wirepup`, `bin/wirepup.previous`, `tools/install-wirepup.bash`,
-`tools/install-system-wirepup.bash`, `tests/install-confirmation.py`, and `tests/install.bash` with their relative
+Copy `bin/wirepup`, `bin/wirepup.previous`, `completions/wirepup.bash`,
+`tools/install-wirepup.bash`, `tools/install-system-wirepup.bash`,
+`tests/completion.py`, `tests/install-confirmation.py`, and `tests/install.bash` with their relative
 paths intact. Run `bash tests/install.bash --system` as a normal user with
 non-interactive sudo and Python 3. This uses the two prebuilt executables and the real installation
 driver, without rebuilding on the VM. It creates a temporary root-owned prefix
@@ -163,8 +171,28 @@ under `/opt`, tests the protected copy and failure preservation, and removes tha
 prefix on success. Existing `/usr/local/bin/wirepup` is not changed. Failed tests
 retain their temporary paths for inspection. These tests run separately from
 `make check` and do not capture or transmit network traffic.
+The system test invokes the installation driver's `check` action as root and verifies
+refusal before executing the binary or sourcing completion.
 
 The system test also requires util-linux (`unshare`, `mount`, `umount`, `runuser`).
 In a private mount namespace it checks that a `noexec` destination preserves the
 previous executable and that a `noexec` `TMPDIR` permits installation elsewhere.
 The temporary mount is removed before the namespace exits.
+
+## 11. Bash completion tests
+
+`go test ./cmd/wirepup -run TestBashCompletion -count=1` builds the real CLI and
+calls the shipped Bash completion function with command, flag, value, and file
+contexts. The command and protocol candidate sets are checked against production
+definitions. The tests cover aliases, value arity, comma lists, quoting, `--`, local
+interfaces, and unevaluated shell input. Completed dash-prefixed paths are passed
+to the real `read` command with the shipped `ca-beacon.pcap`; both beacon events
+must be decoded. This test is also part of `make check`.
+
+After `make build`, run `python3 tests/completion.py` for actual Readline Tab
+input through a PTY. It tests command/option completion, quoted equals assignments,
+paths after `--`, and quoted or escaped paths containing spaces, colons, or equals.
+The edited command is inspected through
+Readline and never executed. If the optional `bash-completion` package is present,
+its real autoloader is tested too; otherwise that one case is reported as skipped.
+`tests/install.bash` runs the same tests with the installed binary and completion.

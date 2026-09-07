@@ -1,5 +1,5 @@
 #!/bin/bash -p
-# Copy a caller-supplied executable from stdin into a protected directory.
+# Copy caller-verified binary or completion bytes into a protected directory.
 # Build and version checks belong to the unprivileged installation driver.
 
 set -euo pipefail
@@ -8,6 +8,14 @@ export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 unset BASH_ENV ENV CDPATH
 umask 022
 
+artifact=binary
+install_mode=0755
+if [[ "${1:-}" == --completion ]]; then
+    artifact=completion
+    install_mode=0644
+    shift
+fi
+readonly artifact install_mode
 check_only=false
 if [[ "${1:-}" == --check ]]; then
     check_only=true
@@ -60,7 +68,11 @@ function check_destination {
     [[ ! -e "${destination}" || -f "${destination}" ]] || die "destination is not a regular file"
 }
 
-[[ "${destination}" == /*/bin/wirepup ]] || die "expected an absolute destination ending in /bin/wirepup"
+if [[ "${artifact}" == completion ]]; then
+    [[ "${destination}" == /*/share/bash-completion/completions/wirepup ]] || die "expected an absolute Bash completion destination"
+else
+    [[ "${destination}" == /*/bin/wirepup ]] || die "expected an absolute destination ending in /bin/wirepup"
+fi
 [[ "${destination}" == "$(realpath -ms -- "${destination}")" ]] || die "destination must not contain dot components or repeated separators"
 check_parents
 check_destination
@@ -79,12 +91,14 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 staged_path="$(mktemp "${destination%/*}/.wirepup.XXXXXXXXXX")"
 cat > "${staged_path}"
-[[ -s "${staged_path}" ]] || die "no executable bytes received; existing installation was preserved"
+[[ -s "${staged_path}" ]] || die "no file bytes received; existing installation was preserved"
 actual_digest="$(sha256sum -- "${staged_path}")"
 [[ "${actual_digest%% *}" == "${expected_digest}" ]] || die "copied bytes differ from verified source; existing installation was preserved"
-chmod 0755 -- "${staged_path}"
+chmod "${install_mode}" -- "${staged_path}"
 # X_OK also checks the mount's noexec flag without executing code as root.
-[[ -x "${staged_path}" ]] || die "destination does not permit execution (noexec); existing installation was preserved"
+if [[ "${artifact}" == binary ]]; then
+    [[ -x "${staged_path}" ]] || die "destination does not permit execution (noexec); existing installation was preserved"
+fi
 check_destination
 if [[ "${allow_replace}" == 1 ]]; then
     mv -fT -- "${staged_path}" "${destination}"
@@ -93,4 +107,4 @@ else
     [[ ! -e "${staged_path}" ]] || die "destination appeared during installation; rerun to approve replacement"
 fi
 staged_path=""
-printf '%s\n' 'PASS: root-owned executable installed with mode 0755'
+printf 'PASS: root-owned %s installed with mode %s\n' "${artifact}" "${install_mode}"

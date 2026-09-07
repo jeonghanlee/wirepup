@@ -16,10 +16,10 @@ install: install.apply
 install.dry-run:
 	$(QUIET) $(INSTALL_ENV) bash $(call shell_quote,$(INSTALL_TOOL)) dry-run $(INSTALL_ARGS)
 
-## Build and install under INSTALL_LOCATION/bin
+## Install the executable and Bash completion under INSTALL_LOCATION
 install.apply: install.preflight build
 	$(QUIET) $(INSTALL_ENV) bash $(call shell_quote,$(INSTALL_TOOL)) apply $(INSTALL_ARGS)
 
-## Verify the installed executable, version, and active PATH
+## Verify executable, version, PATH, and installed Bash completion
 install.check:
 	$(QUIET) $(INSTALL_ENV) bash $(call shell_quote,$(INSTALL_TOOL)) check $(INSTALL_ARGS)

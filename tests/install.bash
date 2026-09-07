@@ -43,14 +43,26 @@ if [[ "${mode}" == local ]]; then
     grep -Fq 'sudo is not needed' "${scratch}/preview.log"
     make install "INSTALL_LOCATION=${prefix}"
     cmp bin/wirepup "${prefix}/bin/wirepup"
+    completion="${prefix}/share/bash-completion/completions/wirepup"
+    cmp completions/wirepup.bash "${completion}"
+    [[ "$(stat -c %a "${completion}")" == 644 ]]
     [[ "$(stat -c %a "${prefix}/bin/wirepup")" == 755 ]]
     PATH="${prefix}/bin:${PATH}" make install.check "INSTALL_LOCATION=${prefix}"
+    mv -- "${completion}" "${completion}.held"
+    expect_failure env PATH="${prefix}/bin:${PATH}" make install.check "INSTALL_LOCATION=${prefix}"
+    grep -Fq 'completion is missing' "${scratch}/failure.log"
+    mv -- "${completion}.held" "${completion}"
+    python3 tests/completion.py "${prefix}/bin/wirepup" "${completion}"
     expect_failure env PATH=/usr/bin:/bin make install.check "INSTALL_LOCATION=${prefix}"
     grep -Fq 'PATH does not resolve' "${scratch}/failure.log"
     mkdir -p "${scratch}/symlink/bin"
     ln -s "${prefix}/bin/wirepup" "${scratch}/symlink/bin/wirepup"
     expect_failure make install "INSTALL_LOCATION=${scratch}/symlink"
     cmp bin/wirepup "${prefix}/bin/wirepup"
+    mkdir -p "${scratch}/completion-symlink/share/bash-completion/completions"
+    ln -s "${completion}" "${scratch}/completion-symlink/share/bash-completion/completions/wirepup"
+    expect_failure make install "INSTALL_LOCATION=${scratch}/completion-symlink"
+    [[ ! -e "${scratch}/completion-symlink/bin/wirepup" ]]
     printf '%s\n' 'PASS: local Make build/install/check, spaces, shadowing, and symlink refusal'
 else
     sudo -n true
@@ -77,12 +89,25 @@ else
     cmp bin/wirepup.previous "${system_prefix}/bin/wirepup"
     INSTALL_FORCE=1 bash tools/install-wirepup.bash apply bin/wirepup "${system_prefix}/bin/wirepup" "${repository}" < /dev/null
     cmp bin/wirepup "${system_prefix}/bin/wirepup"
+    completion="${system_prefix}/share/bash-completion/completions/wirepup"
+    cmp completions/wirepup.bash "${completion}"
+    [[ "$(stat -c '%u:%a' "${completion}")" == 0:644 ]]
+    completion_digest="$(sha256sum completions/wirepup.bash)"
+    completion_digest="${completion_digest%% *}"
+    expect_failure sudo -n /bin/bash -p tools/install-system-wirepup.bash --completion "${completion}" "${completion_digest}" < completions/wirepup.bash
+    grep -Fq 'replacement was not approved' "${scratch}/failure.log"
+    expect_failure sudo -n /bin/bash -p tools/install-system-wirepup.bash --completion "${completion}" "${completion_digest}" 1 < /dev/null
+    grep -Fq 'no file bytes' "${scratch}/failure.log"
+    cmp completions/wirepup.bash "${completion}"
     expect_failure sudo -n /bin/bash -p tools/install-system-wirepup.bash "${system_prefix}/bin/wirepup" "${digest}" < bin/wirepup
     grep -Fq 'replacement was not approved' "${scratch}/failure.log"
     cmp bin/wirepup "${system_prefix}/bin/wirepup"
     PATH="${system_prefix}/bin:${PATH}" bash tools/install-wirepup.bash check bin/wirepup "${system_prefix}/bin/wirepup" "${repository}"
+    expect_failure sudo -n bash tools/install-wirepup.bash check bin/wirepup "${system_prefix}/bin/wirepup" "${repository}"
+    grep -Fq 'normal user' "${scratch}/failure.log"
+    python3 tests/completion.py "${system_prefix}/bin/wirepup" "${completion}"
     expect_failure sudo -n /bin/bash -p tools/install-system-wirepup.bash "${system_prefix}/bin/wirepup" "${digest}" 1 < /dev/null
-    grep -Fq 'no executable bytes' "${scratch}/failure.log"
+    grep -Fq 'no file bytes' "${scratch}/failure.log"
     cmp bin/wirepup "${system_prefix}/bin/wirepup"
     printf '%s\n' 'incomplete executable' > "${scratch}/truncated"
     expect_failure sudo -n /bin/bash -p tools/install-system-wirepup.bash "${system_prefix}/bin/wirepup" "${digest}" 1 < "${scratch}/truncated"

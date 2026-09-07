@@ -13,7 +13,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: M18 is Complete, including Go 1.25.0 verification and upstream landing. Review and accept the M19 guidance plan before implementation. M20's dependencies are also complete; its plan remains draft. M21 has partial direct-scenario evidence; guidance/completion walkthroughs remain pending. M22 has not started.
+Next session entry point: `docs/milestone-182961f.md`: land the verified and reviewed M20 changes under separate commit/push authority. M19 guidance remains draft. M21 has partial direct-scenario evidence; guidance/completion walkthroughs remain pending. M22 has not started.
 
 ## Milestone
 
@@ -40,11 +40,11 @@ Next session entry point: `docs/milestone-182961f.md`: M18 is Complete, includin
 | contract | M17 | Aggregate unanswered-search findings carry no data keys | Milestone | Complete | No | D4, D5 | own codes `ca-searches-no-response`/`pva-searches-no-response` with a `searches` key; [detail](#m17---aggregate-unanswered-search-findings-carry-no-data-keys) |
 | cli | M18 | Direct execution and option reference | Milestone | Complete | No | D6 | Existing script behavior preserved; every option documented against the implementation; [detail](#m18---direct-execution-and-option-reference) |
 | cli | M19 | Guided execution from observed results | Milestone | Not started | Yes | D6, M18 | Bare terminal invocation guides the user through the existing operations and explains next actions; [detail](#m19---guided-execution-from-observed-results) |
-| shell | M20 | Bash completion and installation | Milestone | Not started | Yes | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
+| shell | M20 | Bash completion and installation | Milestone | In progress | No | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
 | docs | M21 | Executable scenarios and bidirectional option links | Milestone | In progress | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
 | docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Not started | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
 
-Status totals: 18 Complete, 1 In progress, 3 Not started. Ready: M19 and M20; plan acceptance and implementation authorization remain separate requirements. No Backlog rows.
+Status totals: 18 Complete, 2 In progress, 2 Not started. Ready: M19; its plan acceptance and implementation authorization remain pending. No Backlog rows.
 
 ### Decisions
 
@@ -1159,7 +1159,7 @@ Superseded Plan Artifacts: none
 Origin: 182961f / M20
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1186,32 +1186,35 @@ Out of scope: Zsh or Fish support, active queries, or automatic shell startup-fi
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-06 - command, option, value, interface, and file completion with installation verification.
+Implementation Authorization: 2026-09-06 - proceed with M20 using the epics-ioc-runner completion and installation example.
 Superseded Plan Artifacts: none
 
-1. Implement context-aware completion while avoiding a second divergent option definition where practical.
-2. Extend installation, preview, and verification for the completion artifact.
-3. Add real Bash tests and document activation and custom-prefix behavior.
+1. Add `completions/wirepup.bash`: obtain commands and option arity from the real CLI help; complete finite values, local interfaces, and file paths without active queries. Keep shell input as data.
+2. Extend `tools/install-wirepup.bash`, its protected-copy helper, and `configure/RULES_INSTALL` to install mode-0644 completion under `INSTALL_LOCATION/share/bash-completion/completions/wirepup`. Check both destinations and obtain replacement consent before copying either artifact; validate completion only as the invoking user.
+3. Exercise the shipped function in Bash, including value positions, quoting, comma lists, and installed files. Extend the real installation tests for both artifacts and retain existing consent/noexec protection.
+4. Document automatic discovery, explicit activation in existing shells, optional bash-completion integration, and custom prefixes. Do not edit shell startup files.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | Bash integration | Source the shipped completion and invoke its registered function with real command contexts, interfaces, and capture paths containing spaces. | Debian 13, Bash, temporary filesystem | Correct candidates and value positions; no command action executed. |
-| T2 | Install integration | Run make install.dry-run, install, and install.check into a temporary prefix; load installed completion and run installed wirepup. | Debian 13, Bash, custom INSTALL_LOCATION | Preview changes nothing; both artifacts work; checks detect missing completion or incorrect PATH. |
+| T1 | Bash integration | Run `make check` including `TestBashCompletion`; after `make build`, run `python3 tests/completion.py` for real Readline Tab input. | Debian 13, Bash, temporary filesystem | Correct candidates, quoting, and autoload; Readline never executes the edited command. Separately, completed dash-prefixed paths replay the shipped PCAP in the CLI tests. |
+| T2 | Install integration | Run `bash tests/install.bash` and `python3 tests/install-confirmation.py`; in an isolated VM run `bash tests/install.bash --system` with the payload in `docs/testing.md`. | Debian 13 host and isolated Debian 13 VM; custom INSTALL_LOCATION | Preview changes nothing; installed completion works; consent, path conflicts, registration failure, privilege separation, concurrent destinations, and noexec checks preserve existing files. |
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Debian 13 Bash | Pending | none |
-| T2 | Not run | Temporary install prefix | Pending | none |
+| T1 | 2026-09-06 PDT | Debian 13, Bash 5.2.37 | Pass | `make check TEST_FLAGS=-count=1` passed. Completed dash-prefixed paths decoded both events from `ca-beacon.pcap`. Real Readline tests passed all 3 groups locally and through installed artifacts, including quoted assignments, colon/equals paths, safe `./` prefixes, and framework autoload. `bash -n` and ShellCheck passed. |
+| T2 | 2026-09-06 PDT | Temporary user prefix and isolated Debian 13 VM root-owned prefix | Pass | Local Make install/check and 8 consent/error tests passed, including undefined registered functions and inherited-function isolation. VM system tests passed protected copies, root-driver refusal, both destination races, noexec preservation and noexec TMPDIR installation. The final test prefix was removed and the existing VM system binary SHA-256 was unchanged. |
 
 ##### Closure Evidence
 
-- none
+- 2026-09-06: independent review accepted completion behavior, installation privilege boundaries and failure preservation, and reader-facing instructions after the reported defects were corrected and rechecked.
+- 2026-09-06: accepted follow-up corrections use `./` for dash-prefixed positional paths and require the registered completion function to be defined by the loaded file. Regression tests and local/VM installation checks passed.
+- Implementation, verification, and review are complete in the working tree. Commit/upstream landing remain pending; this milestone is not closed.
 
 #### M21 - Executable scenarios and bidirectional option links
 

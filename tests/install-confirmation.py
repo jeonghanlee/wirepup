@@ -53,7 +53,8 @@ class InstallConfirmation(unittest.TestCase):
         )
         os.close(slave)
         output = b""
-        sent = False
+        answers = [answer] if isinstance(answer, bytes) else answer
+        sent = 0
         deadline = time.monotonic() + 30
         try:
             while time.monotonic() < deadline:
@@ -68,12 +69,12 @@ class InstallConfirmation(unittest.TestCase):
                 if not chunk:
                     break
                 output += chunk
-                if not sent and b"Replace this file? [y/N]" in output:
-                    os.write(master, answer)
-                    sent = True
+                if sent < len(answers) and output.count(b"Replace this file? [y/N]") > sent:
+                    os.write(master, answers[sent])
+                    sent += 1
             else:
                 self.fail("installation did not finish within 30 seconds")
-            self.assertTrue(sent, output.decode(errors="replace"))
+            self.assertEqual(sent, len(answers), output.decode(errors="replace"))
             return process.wait(timeout=5), output
         finally:
             if process.poll() is None:
@@ -94,6 +95,67 @@ class InstallConfirmation(unittest.TestCase):
         self.assertEqual(self.destination.read_bytes(), self.source.read_bytes())
         self.assertNotEqual(self.destination.read_bytes(), self.previous.read_bytes())
 
+    def test_declining_completion_preserves_both_files(self):
+        completion = self.prefix / "share" / "bash-completion" / "completions" / "wirepup"
+        completion.parent.mkdir(parents=True)
+        source = self.repository / "completions" / "wirepup.bash"
+        shutil.copy2(source, completion)
+        status, output = self.terminal([b"y\n", b"n\n"])
+        self.assertNotEqual(status, 0, output)
+        self.assertEqual(self.destination.read_bytes(), self.previous.read_bytes())
+        self.assertEqual(completion.read_bytes(), source.read_bytes())
+
+    def test_build_output_cannot_be_completion_destination(self):
+        completion = self.prefix / "share" / "bash-completion" / "completions" / "wirepup"
+        completion.parent.mkdir(parents=True)
+        source = self.repository / "completions" / "wirepup.bash"
+        shutil.copy2(source, completion)
+        result = subprocess.run(
+            self.command + [f"BIN={completion}", "INSTALL_FORCE=1"],
+            cwd=self.repository, stdin=subprocess.DEVNULL, capture_output=True,
+        )
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn(b"refer to the same file", result.stderr)
+        self.assertEqual(self.destination.read_bytes(), self.previous.read_bytes())
+        self.assertEqual(completion.read_bytes(), source.read_bytes())
+
+    def test_unregistered_completion_preserves_both_files(self):
+        completion = self.prefix / "share" / "bash-completion" / "completions" / "wirepup"
+        completion.parent.mkdir(parents=True)
+        source = self.repository / "completions" / "wirepup.bash"
+        shutil.copy2(source, completion)
+        fixture = self.prefix / "invalid-source"
+        (fixture / "completions").mkdir(parents=True)
+        for contents in ["true\n", "complete -F _wirepup wirepup\n",
+                         "function _wirepup { :; }\ncomplete -F _missing wirepup\n"]:
+            with self.subTest(contents=contents):
+                (fixture / "completions" / "wirepup.bash").write_text(contents, encoding="ascii")
+                result = subprocess.run(
+                    ["bash", "tools/install-wirepup.bash", "apply", str(self.source),
+                     str(self.destination), str(fixture)], cwd=self.repository,
+                    env=dict(os.environ, INSTALL_FORCE="1"), stdin=subprocess.DEVNULL, capture_output=True,
+                )
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn(b"does not register wirepup", result.stderr)
+                self.assertEqual(self.destination.read_bytes(), self.previous.read_bytes())
+                self.assertEqual(completion.read_bytes(), source.read_bytes())
+
+    def test_installed_completion_requires_its_own_handler(self):
+        completion = self.prefix / "share" / "bash-completion" / "completions" / "wirepup"
+        completion.parent.mkdir(parents=True)
+        contents = "complete -F _wirepup wirepup\n"
+        completion.write_text(contents, encoding="ascii")
+        env = dict(os.environ, PATH=f"{self.destination.parent}:{os.environ['PATH']}")
+        env["BASH_FUNC__wirepup%%"] = "() { :; }"
+        result = subprocess.run(
+            ["make", "install.check", f"INSTALL_LOCATION={self.prefix}"], cwd=self.repository,
+            env=env, stdin=subprocess.DEVNULL, capture_output=True,
+        )
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn(b"defined function", result.stderr)
+        self.assertEqual(self.destination.read_bytes(), self.previous.read_bytes())
+        self.assertEqual(completion.read_text(encoding="ascii"), contents)
+
     def test_noninteractive_requires_explicit_approval(self):
         result = subprocess.run(self.command, cwd=self.repository, stdin=subprocess.DEVNULL, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
@@ -111,8 +173,9 @@ class InstallConfirmation(unittest.TestCase):
         command = ["bash", "tools/install-wirepup.bash", "apply", str(self.source),
                    str(self.destination), str(self.repository)]
         baseline = subprocess.run(command, cwd=self.repository, check=True, capture_output=True)
-        boundary = baseline.stdout.index(b"Installing executable:")
+        boundary = baseline.stdout.index(b"Installing binary:")
         self.destination.unlink()
+        (self.prefix / "share" / "bash-completion" / "completions" / "wirepup").unlink()
         read_fd, write_fd = os.pipe()
         capacity = fcntl.fcntl(write_fd, fcntl.F_SETPIPE_SZ, 4096)
         self.assertLess(boundary, capacity)
@@ -150,15 +213,20 @@ class InstallConfirmation(unittest.TestCase):
                 os.close(read_fd)
 
 
-def system_race(prefix):
+def system_race(prefix, completion=False):
     repository = Path(__file__).resolve().parent.parent
     destination = Path(prefix) / "race" / "bin" / "wirepup"
     source = repository / "bin" / "wirepup"
     previous = repository / "bin" / "wirepup.previous"
+    helper_args = []
+    if completion:
+        destination = Path(prefix) / "race" / "share" / "bash-completion" / "completions" / "wirepup"
+        source = previous = repository / "completions" / "wirepup.bash"
+        helper_args = ["--completion"]
     subprocess.run(["sudo", "-n", "mkdir", "-p", str(destination.parent)], check=True)
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     process = subprocess.Popen(
-        ["sudo", "-n", "/bin/bash", "-p", "tools/install-system-wirepup.bash",
+        ["sudo", "-n", "/bin/bash", "-p", "tools/install-system-wirepup.bash", *helper_args,
          str(destination), digest, "0"], cwd=repository,
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
@@ -169,11 +237,13 @@ def system_race(prefix):
                 raise AssertionError("protected copy did not reach its input stage")
             time.sleep(0.01)
         subprocess.run(["sudo", "-n", "install", "-m", "0755", str(previous), str(destination)], check=True)
+        inode = destination.stat().st_ino
         _, errors = process.communicate(source.read_bytes(), timeout=10)
         assert process.returncode != 0, "unapproved replacement succeeded"
         assert b"destination appeared" in errors, errors
         assert destination.read_bytes() == previous.read_bytes(), "existing file changed"
-        print("PASS: protected destination appearing during copy was preserved")
+        assert destination.stat().st_ino == inode, "existing file was replaced"
+        print(f"PASS: protected {'completion' if completion else 'binary'} appearing during copy was preserved")
     finally:
         if process.poll() is None:
             process.kill()
@@ -228,6 +298,7 @@ def system_noexec(prefix, username):
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--system":
         system_race(sys.argv[2])
+        system_race(sys.argv[2], completion=True)
     elif len(sys.argv) == 4 and sys.argv[1] == "--noexec":
         system_noexec(sys.argv[2], sys.argv[3])
     else:

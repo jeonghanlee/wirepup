@@ -57,17 +57,22 @@ The selected Go toolchain supplies gofmt and enforces the minimum in `go.mod`.
 Builds use `CGO_ENABLED=0`; only `race` enables cgo and requires a C compiler.
 `clean` removes only the file selected by `BIN`, leaving its directory intact.
 
-Local installation defaults to `$HOME/.local/bin/wirepup`, without sudo.
+Local installation defaults to `$HOME/.local/bin/wirepup`, without sudo,
+with Bash completion at `$HOME/.local/share/bash-completion/completions/wirepup`.
 Use `install.dry-run` to preview, `install` (an alias of `install.apply`) to
 build and install, and `install.check` to verify the executable, version,
-and active PATH. Set `INSTALL_LOCATION` to change the installation prefix;
+active PATH, and completion registration. Set `INSTALL_LOCATION` to change both files' prefix;
 pass the same value to all three operations. `INSTALL` selects the GNU
-coreutils install command for writable destinations. Installation refuses a symlink or non-regular file at
-the executable destination.
+coreutils install command for writable destinations. Installation refuses a symlink or
+non-regular file at either destination. Build output must not refer to either installed
+file. Completion syntax, registration, and the registered function's definition are
+checked before installation and again on the staged copy, as the invoking user in
+a fresh Bash process.
 
-If the destination file already exists, installation asks
+For each destination file that already exists, installation asks
 `Replace this file? [y/N]` before changing it. Enter, `n`, or EOF cancels the
-installation with a non-zero exit status and preserves the existing file.
+installation with a non-zero exit status. Both answers are collected before
+either file is copied, so cancelling either question preserves both files.
 Without an interactive terminal, replacement is refused. For automation,
 explicitly approve replacement with `make install INSTALL_FORCE=1` (and the
 same `INSTALL_LOCATION` as before). A new destination needs no confirmation.
@@ -88,23 +93,60 @@ sudo wirepup version
 Installation selects sudo when the destination directory is not writable.
 Only the file copy uses sudo, which may ask for your password;
 the build and version checks run as your normal user. Do not run `sudo make`.
-The protected copy installs a root-owned executable with mode `0755` and requires
+The protected copy installs a root-owned executable with mode `0755` and
+completion with mode `0644`. It requires
 root-owned parent directories without group or other write permission or symlinks.
 The invoking user must be able to traverse those directories to verify the result.
 It uses system tools; custom `INSTALL` commands apply only to writable destinations.
-The copy's SHA-256 digest must match the executable snapshot verified before sudo;
+Each copy's SHA-256 digest must match its snapshot verified before sudo;
 an incomplete or changed copy does not replace the existing installation.
 The verification snapshot is created beside the resolved build output, so a
 `noexec` setting on `TMPDIR` does not prevent installation. That build directory
 must be writable by the invoking user. Before replacement, the protected copy
-checks execution permission on its staged file and refuses a `noexec` destination
+checks execution permission on the staged executable and refuses a `noexec` destination
 while preserving the existing file.
+Files are installed one at a time: a later copy failure can leave the executable
+updated and completion unchanged. Correct the reported failure and rerun installation;
+`install.check` checks that both artifacts are present and usable.
 
 `install.check` checks your current PATH; `sudo wirepup version` separately checks
 sudo's command lookup. An older `$HOME/.local/bin/wirepup` can still take precedence
 in your shell. To select the system installation, use `export PATH=/usr/local/bin:$PATH`
 and run `make install.check INSTALL_LOCATION=/usr/local` again. If sudo does not
 search `/usr/local/bin`, use `sudo /usr/local/bin/wirepup version`.
+
+## Bash completion
+
+Once completion is activated, press `Tab` to complete commands, options, protocol names,
+local interfaces, and capture paths. For example, `wirepup cap<Tab>` becomes
+`wirepup capture`. With Bash's default settings, `Tab` extends the common prefix.
+If several candidates remain and `Tab` makes no further change, press it once
+more to list them:
+`wirepup capture -i <Tab><Tab>` lists the matching local interfaces.
+`wirepup observe --protocol arp,ll<Tab>` completes `arp,lldp`.
+Paths with spaces can be quoted or escaped normally.
+For a capture filename beginning with a dash, start with `./` before pressing Tab,
+for example `wirepup read ./-in<Tab>`. See the
+[positional argument rules](docs/cli-reference.md#invocation-and-help).
+
+Activate it in an existing Bash shell using the path printed by `install.check`:
+
+```bash
+source "$HOME/.local/share/bash-completion/completions/wirepup"
+```
+
+For `INSTALL_LOCATION=/usr/local`, source
+`/usr/local/share/bash-completion/completions/wirepup` instead. For a custom prefix,
+source `<prefix>/share/bash-completion/completions/wirepup`. Explicit sourcing works
+with Bash 4 or newer without the optional `bash-completion` package. For automatic
+loading, install that package and start a new Bash shell with its integration enabled.
+Standard user and system data directories are discovered; for custom prefixes or
+an overridden `XDG_DATA_HOME`, the explicit source command remains reliable.
+Re-source after updating a completion already loaded in the current shell.
+
+Completion reads the installed CLI's help, local interface names, and file names.
+It does not capture traffic, look up PVs, transmit packets, or change network settings.
+No shell startup file is edited during installation.
 
 ## Core goals
 
