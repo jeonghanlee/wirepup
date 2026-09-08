@@ -2,7 +2,7 @@
 
 ## Scope
 
-This reference describes the implemented WirePup CLI for direct terminal use and scripts. Use the [tested usage scenarios](usage-scenarios.md) to start from a task, or the option sections below to understand a particular flag.
+This reference describes the implemented WirePup CLI for direct terminal use and scripts. Use the [usage scenarios](usage-scenarios.md) to start from a task, or the option sections below to understand a particular flag.
 
 **Out of scope:** protocol internals and a guarantee that an unobserved device or PV does not exist. The [execution modes](cli-design.md#execution-modes) describe interactive guidance; the command and flag reference below describes its reusable direct invocations. See also the [safety rules](safety.md).
 
@@ -65,20 +65,32 @@ Source-dependent flags only apply when that source is used: `--no-promisc` has n
 
 ## Shared option details
 
-### Options in tested scenarios
+### Find a scenario for an option
 
-| Options | Scenario and verified result |
+| Options or command | Scenario |
 | --- | --- |
-| `-i`, `--protocol`, `--timeout`, `-o`, `--devices` | [Capture and replay](usage-scenarios.md#capture-and-replay): real peer ARP decoded |
-| `--arp`, `--yes` | [Bounded ARP search](usage-scenarios.md#bounded-arp-search): real kernel reply; VM automation uses `--yes` |
-| `--address`, `-i`, target argument | [Temporary connection](usage-scenarios.md#temporary-connection): conflict refusal and selective removal |
-| `--pcap`, `--local` | [DHCP and Auto-IP](usage-scenarios.md#dhcp-and-auto-ip): lease ACK or no-offer diagnosis |
-| `--pcap`, `--json`, PV argument | [Passive EPICS analysis](usage-scenarios.md#passive-epics-analysis): actual CA/PVA client traffic |
-| `--active`, `--to`, `--search` | [Active EPICS search](usage-scenarios.md#active-epics-search): real IOC answers |
-| `--epics`, `--json` | [Duplicate and missing PVs](usage-scenarios.md#duplicate-and-missing-pvs): distinct findings and exit status |
+| `-i`, `--interface`, `--oui-file` | [Find an unknown device](usage-scenarios.md#find-an-unknown-device) |
+| `-o`, `--output`, `--snaplen`, `--no-promisc` | [Capture and replay](usage-scenarios.md#capture-and-replay) |
+| `--pcap`, `--devices`, `--protocol`, `--verbose` | [Capture and replay](usage-scenarios.md#capture-and-replay) |
+| `--local`, `--address` | [Temporary connection](usage-scenarios.md#temporary-connection) |
+| `--arp` | [Bounded ARP search](usage-scenarios.md#bounded-arp-search) |
+| `--active`, `--to`, `--search` | [Active EPICS search](usage-scenarios.md#active-epics-search) |
+| `--epics` | [Duplicate and missing PVs](usage-scenarios.md#duplicate-and-missing-pvs) |
+| `--timeout` | [Discovery windows](usage-scenarios.md#find-an-unknown-device), [active waits](usage-scenarios.md#active-epics-search), [timed TUI](usage-scenarios.md#use-the-tui) |
+| `--json`, `--quiet`, `--yes` | [Scripts and help](usage-scenarios.md#scripts-and-help) |
+| `-h`, `--help`, `help`, `version` | [Scripts and help](usage-scenarios.md#scripts-and-help) |
 
-This table covers the recorded VM scenarios, not a claim that every option
-combination has been tested live. The sections below cover the full option set.
+A link identifies a useful application, not every supported combination.
+Read the applicability and default rules below before adding flags.
+Guided choices and completion examples are included in the linked scenarios.
+
+### `-h`, `--help`
+
+Print help and exit 0 without performing the operation. Use general help at
+the top level and leaf help such as `wirepup epics find --help`; the EPICS
+group alone exits 2. Version is the separate `wirepup version` command.
+
+Scenario: [inspect syntax and version before scripting](usage-scenarios.md#scripts-and-help).
 
 ### `-i`, `--interface`
 
@@ -86,7 +98,7 @@ Value: local interface name; default: empty. Required for live capture, ARP swee
 
 Do not combine it with `--pcap` on commands that select between live and file input: they reject the combination. On active EPICS find it provides the passive observation interface and local prefixes for default broadcast destinations; the UDP search socket itself is not bound to this interface. On `disconnect`, omitting it allows removal across all recorded interfaces.
 
-Use cases: [observe a link](cli-design.md#wirepup-observe), [diagnose a target](cli-design.md#wirepup-diagnose), [remove temporary addresses](cli-design.md#wirepup-disconnect).
+Scenario: [find an unknown device](usage-scenarios.md#find-an-unknown-device) and [selective cleanup](usage-scenarios.md#interruption-and-cleanup).
 
 ### `--pcap`
 
@@ -94,7 +106,7 @@ Value: PCAP or PCAPNG input path; default: empty (live source). See the applicab
 
 For `read`, the positional filename is required and overrides a supplied `--pcap`. Avoid redundant input specifications. `capture`, `probe`, and `connect` do not become offline operations when given this flag. `epics find --active --pcap FILE --to ADDRESS` reads the file and can then transmit after confirmation; omit `--active` for passive-only replay.
 
-Use cases: [offline analysis](cli-design.md#wirepup-read), [compare captures](cli-design.md#wirepup-diagnose), [find a PV in a capture](cli-design.md#wirepup-epics).
+Scenario: [capture and replay](usage-scenarios.md#capture-and-replay) and [passive EPICS analysis](usage-scenarios.md#passive-epics-analysis).
 
 ### `--local`
 
@@ -102,7 +114,7 @@ Value: comma-separated IPv4/IPv6 CIDR prefixes of the capture host; default: non
 
 Use it to explain whether an observed address is outside the original host's subnet. The capture does not supply all original host configuration; omitting this optional flag leaves that context empty. It does not assign an address or change routes. Live diagnosis obtains local context from the current host and ignores `--local`.
 
-Use case: [offline subnet diagnosis](cli-design.md#wirepup-diagnose).
+Scenario: [offline subnet diagnosis](usage-scenarios.md#temporary-connection) and [DHCP diagnosis](usage-scenarios.md#dhcp-and-auto-ip).
 
 ### `--protocol`
 
@@ -114,7 +126,7 @@ CA/PVA rules admit all IPv4 TCP because server ports may be learned later. Conse
 
 `epics find` validates names but does not apply this filter; use `--search` to select its active protocols. See the [kernel and display distinction](cli-design.md#global-options).
 
-Use cases: [watch ARP or LLDP](cli-design.md#wirepup-observe), [inspect CA/PVA](cli-design.md#wirepup-epics), [filter replay](cli-design.md#wirepup-read).
+Scenario: [capture and replay](usage-scenarios.md#capture-and-replay) and [passive EPICS events](usage-scenarios.md#passive-epics-analysis).
 
 ### `--json`
 
@@ -122,7 +134,7 @@ Boolean; default: false. Selects structured stdout where the applicability table
 
 Progress, plans, confirmations, and errors remain on stderr. This flag does not suppress confirmation and has no output-format effect on `capture` or `tui`.
 
-Use case: [machine-readable discovery](cli-design.md#wirepup-discover).
+Scenario: [scripts and result interpretation](usage-scenarios.md#scripts-and-help).
 
 ### `--quiet`
 
@@ -130,11 +142,13 @@ Boolean; default: false. Suppresses listening notices, closing capture/decode st
 
 Use it with `--json` when a script needs fewer progress messages. See [discovery](cli-design.md#wirepup-discover) and [offline analysis](cli-design.md#wirepup-read).
 
+Scenario: [scripts with less progress output](usage-scenarios.md#scripts-and-help).
+
 ### `--verbose`
 
 Boolean; default: false. Adds frame, IPv4, IPv6, and TCP observations to `observe`, event-mode `read`, and TUI Events when no explicit protocol filter is set. It is not a debug logging switch and does not override `--protocol`.
 
-Use case: [inspect replay events](cli-design.md#wirepup-read).
+Scenario: [inspect additional replay events](usage-scenarios.md#capture-and-replay).
 
 ### `--timeout`
 
@@ -152,13 +166,13 @@ Value: Go duration such as `500ms`, `5s`, or `2m`; parsed default: `0`. Use posi
 
 Active find runs CA and PVA sequentially. After a live passive window, it reuses that window's timeout (default 5 seconds) for each protocol's reply wait; it is not a single end-to-end deadline. A positive timeout also ends TUI. `probe`, `disconnect`, and address-only `connect` do not use this option to bound their active actions. Negative durations currently disable observation deadlines; active search functions replace nonpositive reply waits with 2 seconds. Prefer positive durations rather than depending on that edge behavior.
 
-Use cases: [bounded observation](cli-design.md#wirepup-observe), [diagnosis](cli-design.md#wirepup-diagnose), [active search](cli-design.md#wirepup-epics).
+Scenario: [bounded discovery](usage-scenarios.md#find-an-unknown-device), [capture](usage-scenarios.md#capture-and-replay), and [active reply waits](usage-scenarios.md#active-epics-search).
 
 ### `--no-promisc`
 
 Boolean; default: false. Set it to prevent the live capture socket from requesting promiscuous membership. It does not change switch forwarding or make traffic from other switch ports visible. File input is unaffected. It applies to the passive capture window of `connect`/`epics find`, not to ARP/UDP transmit behavior.
 
-Use case: [live capture](cli-design.md#wirepup-capture).
+Scenario: [capture without a promiscuous request](usage-scenarios.md#capture-and-replay).
 
 ### `--oui-file`
 
@@ -166,7 +180,7 @@ Value: IEEE `oui.txt` path; default: first readable file from `/var/lib/ieee-dat
 
 A missing default registry disables vendor hints and normally prints a notice. A missing explicitly requested registry fails with exit 2. No registry is downloaded automatically. Vendor names remain hints, and locally administered MAC addresses do not get a vendor inferred from their prefix.
 
-Use cases: [device inventory](cli-design.md#wirepup-discover), [device replay](cli-design.md#wirepup-read).
+Scenario: [device inventory with an explicit vendor table](usage-scenarios.md#find-an-unknown-device).
 
 ## Command-specific options
 
@@ -174,17 +188,25 @@ Use cases: [device inventory](cli-design.md#wirepup-discover), [device replay](c
 
 `read` only; Boolean; default: false. Changes replay from event output to device events plus the final device inventory. Combine with `--oui-file` for vendor hints, `--protocol` for packet selection, and `--json` for structured output. See [read](cli-design.md#wirepup-read).
 
+Scenario: [device inventory](usage-scenarios.md#find-an-unknown-device) and [capture views](usage-scenarios.md#capture-and-replay).
+
 ### `-o`, `--output`
 
 `capture` only; required output path; default: empty. A `.pcapng` suffix (case-insensitive) selects PCAPNG; other suffixes select PCAP. The file is created or truncated after the live source opens. This does not convert an input capture. See [capture](cli-design.md#wirepup-capture).
+
+Scenario: [save PCAP or PCAPNG](usage-scenarios.md#capture-and-replay).
 
 ### `--snaplen`
 
 `capture` only; integer byte count; default: 0. Positive values truncate saved packet bytes without changing original-length metadata. Nonpositive values use the writer default of 262144 bytes and apply no extra CLI truncation. The live capture buffer also defaults to 262144 bytes; increasing this flag cannot recover bytes already omitted by capture. Smaller values may remove payload required by diagnosis. See [capture](cli-design.md#wirepup-capture).
 
+Scenario: [limit saved packet length](usage-scenarios.md#capture-and-replay).
+
 ### `--epics`
 
 `diagnose` and `epics diagnose`; Boolean. Default: false for `diagnose`, enabled by the `epics diagnose` wrapper. Selects CA/PVA rules instead of general network diagnosis; it is a rule selector, not a packet filter. `epics diagnose --epics=false` overrides the wrapper. `--protocol` may further restrict input, changing what can be inferred. See [diagnose](cli-design.md#wirepup-diagnose).
+
+Scenario: [duplicate servers and missing PV replies](usage-scenarios.md#duplicate-and-missing-pvs).
 
 ### `--yes`
 
@@ -192,9 +214,13 @@ Use cases: [device inventory](cli-design.md#wirepup-discover), [device replay](c
 
 `disconnect` does not register `--yes` and never prompts: explicit invocation is the action. See [probe](cli-design.md#wirepup-probe), [connect](cli-design.md#wirepup-connect), and [EPICS search](cli-design.md#wirepup-epics).
 
+Scenario: [authorized automation](usage-scenarios.md#scripts-and-help) and [bounded ARP search](usage-scenarios.md#bounded-arp-search).
+
 ### `--arp`
 
 `probe` only; required IPv4 CIDR prefix; default: empty. Accepts `/24` through `/32`; shorter prefix lengths (larger networks) and IPv6 are refused. One request per usable host at 20 per second; `/31` includes both addresses and `/32` one address. There is no rate or retry option. Use only on the intended interface and prefix after reviewing the printed plan. See [probe](cli-design.md#wirepup-probe).
+
+Scenario: [bounded ARP search](usage-scenarios.md#bounded-arp-search).
 
 ### `--address`
 
@@ -202,9 +228,13 @@ Use cases: [device inventory](cli-design.md#wirepup-discover), [device replay](c
 
 With both a target and `--address`, the command observes the target but uses the explicit candidate even when that target was not observed. Existing local addresses and network/broadcast addresses for prefixes shorter than `/31` are refused. Three ARP probes precede any address assignment. Remove the result later with `disconnect`; the session file is `/run/wirepup/session.json`. See [connect](cli-design.md#wirepup-connect).
 
+Scenario: [temporary connection and cleanup](usage-scenarios.md#temporary-connection).
+
 ### `--active`
 
 `epics find` only; Boolean; default: false. After any selected passive/file observation, print the destinations and request confirmation, then send one search datagram per selected protocol per destination. Requires `--to` or an interface with usable broadcast prefixes. It can transmit even with `--pcap`; never treat file selection as an override of this flag. See [EPICS search](cli-design.md#wirepup-epics).
+
+Scenario: [explicit EPICS search](usage-scenarios.md#active-epics-search).
 
 ### `--to`
 
@@ -212,9 +242,13 @@ With both a target and `--address`, the command observes the target but uses the
 
 An address without a port uses 5064 for CA and 5076 for PVA. An explicit port is reused for every selected protocol; choose `--search ca` or `--search pva` when the port is protocol-specific. With no `-i`, explicit destinations avoid a live observation window and the OS routing table chooses the outgoing path. Without `--active`, this option is ignored. See [EPICS search](cli-design.md#wirepup-epics).
 
+Scenario: [EPICS server and broadcast destinations](usage-scenarios.md#active-epics-search).
+
 ### `--search`
 
 `epics find --active`; default: `ca,pva`. Use `ca`, `pva`, or `ca,pva` to select outgoing searches. Case and surrounding whitespace are normalized. It does not select passive observations; both CA and PVA remain observed. Without `--active`, it is ignored. The current validator rejects a set with neither CA nor PVA, but ignores additional unknown names if a supported name is present; use only the documented values. See [EPICS search](cli-design.md#wirepup-epics).
+
+Scenario: [select CA/PVA transmissions](usage-scenarios.md#active-epics-search).
 
 ## Exit status and scripts
 
@@ -230,4 +264,4 @@ An address without a port uses 5064 for CA and 5076 for PVA. An explicit port is
 
 A missing input file normally yields 1, not 4. Passive find can exit 0 because it observed a search for the PV even if no server answered. Targeted diagnosis uses 5 when the address was not seen; untargeted diagnosis can succeed with an absence finding. Consult the report, not just the status, before deciding the next action.
 
-Keep stdout and stderr separate when consuming JSON. Use explicit commands for scripts and supply `--yes` only when deliberately authorizing that active operation. The [execution-mode contract](cli-design.md#execution-modes) preserves this path when guidance is implemented.
+Keep stdout and stderr separate when consuming JSON. Use explicit commands for scripts and supply `--yes` only when deliberately authorizing that active operation. The [execution-mode contract](cli-design.md#execution-modes) preserves this direct path.

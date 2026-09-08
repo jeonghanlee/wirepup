@@ -13,7 +13,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: land the reviewed M19 implementation under separate Git delegation and record closure before M21. Both independent correction reviews accepted T8; fresh runs passed eight local PTY groups and G01-G27. M20 is Complete. M21 has partial direct-scenario evidence; M22 has not started.
+Next session entry point: `docs/milestone-182961f.md`: M21 documentation and T1-T3 verification are accepted; land the five reviewed documentation files under Git delegation, then record completion. M19 and M20 are Complete; M22 follows M21 closure.
 
 ## Milestone
 
@@ -39,12 +39,12 @@ Next session entry point: `docs/milestone-182961f.md`: land the reviewed M19 imp
 | rules | M16 | diagnose --epics reports the absence of EPICS traffic | Milestone | Complete | No | D2 | one Inferred finding under `--epics` when no CA/PVA record exists; golden added; [detail](#m16---diagnose---epics-reports-the-absence-of-epics-traffic) |
 | contract | M17 | Aggregate unanswered-search findings carry no data keys | Milestone | Complete | No | D4, D5 | own codes `ca-searches-no-response`/`pva-searches-no-response` with a `searches` key; [detail](#m17---aggregate-unanswered-search-findings-carry-no-data-keys) |
 | cli | M18 | Direct execution and option reference | Milestone | Complete | No | D6 | Existing script behavior preserved; every option documented against the implementation; [detail](#m18---direct-execution-and-option-reference) |
-| cli | M19 | Guided execution from observed results | Milestone | In progress | No | D6, M18 | Bare terminal invocation guides the user through the existing operations and explains next actions; [detail](#m19---guided-execution-from-observed-results) |
+| cli | M19 | Guided execution from observed results | Milestone | Complete | No | D6, M18 | Bare terminal invocation guides the user through the existing operations and explains next actions; [detail](#m19---guided-execution-from-observed-results) |
 | shell | M20 | Bash completion and installation | Milestone | Complete | No | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
 | docs | M21 | Executable scenarios and bidirectional option links | Milestone | In progress | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
 | docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Not started | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
 
-Status totals: 19 Complete, 2 In progress, 1 Not started. Ready: none; M19 corrections and T8 review are accepted, pending Git landing and closure. No Backlog rows.
+Status totals: 20 Complete, 1 In progress, 1 Not started. Ready: none; M21 awaits Git landing and M22 depends on its closure. No Backlog rows.
 
 ### Decisions
 
@@ -1097,7 +1097,7 @@ T2: `TestCLIReferenceCoversCommandHelp` passed against actual command help. The 
 Origin: 182961f / M19
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1213,7 +1213,9 @@ The [VM results](vm-test-results.md) identify the corrected executable (`5287987
 ##### Closure Evidence
 
 - 2026-09-07: the owner authorized correction of the two re-review defects. Complete-input refusal and shared-subnet preservation are implemented and verified as recorded above. Both independent implementation and reader reviews accepted the corrections at 16:36 PDT; no in-scope finding remains. Execution scope and limits are recorded in [VM Scenario Results](vm-test-results.md).
-- Git landing and formal closure are pending; M19 remains In progress. No commit or push was performed for this implementation.
+- Implementation commit: `aeda686bffb1375b3b62d3d529f4ac5d72db3dc3`.
+- Upstream observed at 2026-09-07T19:13:17-07:00: after `git fetch origin`, HEAD and `origin/master` both equal the implementation commit. All 32 committed paths match the accepted review hashes; no incoming or outgoing commit or uncommitted change remained.
+- Completed on 2026-09-07: T1-T8 and independent implementation, reader, and delivery-record reviews are accepted; the implementation landed upstream. No external gate or linked issue remains. Verification limits above remain unchanged.
 
 #### M20 - Bash completion and installation
 
@@ -1312,16 +1314,17 @@ Out of scope: new diagnosis behavior or claiming live validation from an offline
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: 2026-09-05 - execute the available scenarios, retain test records, and strengthen actual examples. Guidance and completion remain dependent on M19/M20.
+Plan Status: accepted
+Plan Acceptance: 2026-09-07 - complete the existing direct scenarios with the implemented guided paths, Bash completion examples, and links in both directions for every public option.
+Implementation Authorization: 2026-09-07 - proceed with M19 completion recording and M21 scenario/option documentation and real-path verification.
 Superseded Plan Artifacts: none
 
-1. Build the scenario inventory and option-to-scenario coverage map from M18.
-2. Write and execute offline cases, guided equivalents, and completion examples.
-3. Validate live procedures in the isolated lab and publish interpretation and cleanup instructions.
+1. Update `docs/usage-scenarios.md` around concrete tasks. Give minimum direct commands, the relevant guide choices, expected results, next actions, cleanup, and optional refinements. Identify operations available only as direct commands instead of inventing guide controls.
+2. Complete `docs/cli-reference.md` links for all public options, aliases, help, and version. Link each scenario's options to its reference and each option to a scenario that actually uses it. Preserve option defaults and restrictions.
+3. Execute the documented offline commands against shipped PCAPs, all three guided entries through real PTYs, and completion through real Bash. Follow the live discovery/capture/TUI/temporary-address paths in the isolated existing VM lab and compare addresses/routes after cleanup.
+4. Record dated outcomes and limits here and in `docs/vm-test-results.md`; document the repeatable checks in `docs/testing.md`. Run independent second- and third-person review before requesting Git landing.
 
-Direct-scenario subset implemented in `docs/usage-scenarios.md`, `docs/cli-reference.md`, and `tests/vm/`. The broader plan remains draft until guided/completion walkthroughs can be defined from M19/M20. This partial execution is not milestone closure.
+Plan review: before this change, `docs/usage-scenarios.md` excluded guidance and said bare invocation exited 2, contradicting the implemented terminal guide in `cmd/wirepup/cmd_guide.go`. Several option links in `docs/cli-reference.md` led only to the design document, not executable scenarios. M19/M20 are implemented and landed; no feature dependency remains. This work changes documentation and its verification, not CLI behavior.
 
 ##### Test Plan
 
@@ -1335,13 +1338,16 @@ Direct-scenario subset implemented in `docs/usage-scenarios.md`, `docs/cli-refer
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | 2026-09-05 | Debian 13 VM and source checkout | Partial: real captured CA/PVA and DHCP walkthroughs replayed; guided equivalents pending | `docs/vm-test-results.md`; `TestRecordedVMCaptures` |
-| T2 | 2026-09-05 | Markdown and built CLI | Partial: tested direct scenarios linked both ways; all-option, guidance and completion coverage pending | `docs/usage-scenarios.md`; `docs/cli-reference.md` |
-| T3 | 2026-09-05 | Dedicated Debian 13 VM with isolated namespaces | Partial: 16 live checks pass; TUI/PTY walkthrough not run; guide absent | `docs/vm-test-results.md`; detailed records retained locally |
+| T1 | 2026-09-07 | Debian 13 source checkout; executable `311286be5e82` | PASS | 14 documented noninteractive commands exited 0; 10 file-based guide paths matched stdout/status from their printed command executed in real Bash. Shipped PCAPs covered LLDP, subnet context, DHCP, CA/PVA, duplicates and missing replies. Two offline TUI examples and the five-second timeout ran through actual PTYs. See [dated results](vm-test-results.md#usage-walkthrough-verification). |
+| T2 | 2026-09-07 | Markdown, built CLI and real Bash Readline | PASS | All 21 option entries have links in both directions; 140 relative links in the two guides resolve. Leaf help coverage and fresh `make check TEST_FLAGS=-count=1` pass. Three completion tests, all six usage-table examples and eight guidance test groups pass. |
+| T3 | 2026-09-07 19:38-19:39 PDT | Dedicated Debian 13 VM; real namespaces, kernel/IOC peers and PTYs | PASS | 13 focused checks including isolation, discovery, ARP capture/replay, PCAPNG snap length/no-promisc, confirmed direct/guided ARP and CA/PVA search, active missing-PV exit 5, temporary connections, TUI keys and interruption. Complete client addresses/routes/other record were preserved; actors/namespaces were removed and original session/management state restored. DHCP acquisition, duplicate IOC setup and reboot retain earlier evidence. |
+
+The current executable was built from `aeda686bffb1375b3b62d3d529f4ac5d72db3dc3`; its full hash and verification limits are in [VM Scenario Results](vm-test-results.md#usage-walkthrough-verification). Local command output, PTY transcripts, VM orchestration and raw results remain under `work/` or in the dedicated guest. The public [walkthrough procedure](testing.md#13-usage-walkthrough-verification) describes repetition without depending on a private results path.
 
 ##### Closure Evidence
 
-- none
+- 2026-09-07: independent second-person and third-person review accepted all five documentation files and their recorded evidence. The capture-view navigation and text/JSON finding explanations were corrected; no in-scope finding remains.
+- Implementation and T1-T3 verification are recorded. The documentation changes have not been committed or pushed; M21 remains In progress until Git landing is verified.
 
 #### M22 - Usage-first documentation navigation and cleanup
 

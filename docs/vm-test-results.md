@@ -2,16 +2,60 @@
 
 ## Scope
 
-**2026-09-07: all 27 guided checks passed on the corrected executable.**
-This focused run used the dedicated Debian 13 VM. An earlier full run passed
-17 scenario rows, including 23 guided checks and an actual guest reboot;
-that broader run used the earlier executable identified below.
+**2026-09-07: all 13 usage-walkthrough checks passed in the dedicated Debian 13 VM.**
+The corresponding local checks executed 14 documented commands, 10 guided
+file workflows, two offline TUI views and Bash completion examples.
+An earlier focused run passed all 27 guided checks; the earlier full run passed
+17 scenario rows, including 23 guided checks and an actual guest reboot.
+Each run's scope and executable are identified below.
 These are recorded results, not a fresh test whenever this page is opened.
 Use the [procedure](../tests/vm/README.md) to repeat them and the
 [usage scenarios](usage-scenarios.md) to apply the results.
 
 **Out of scope:** production networks, physical hardware and the complete
 release matrix. Detailed logs and intermediate failure records remain local.
+
+## Usage walkthrough verification
+
+The 2026-09-07 walkthrough used source commit
+`aeda686bffb1375b3b62d3d529f4ac5d72db3dc3` and executable SHA-256
+`311286be5e82b989c7feaad45a78ef1f42b91f7f64abc0ce53b9cdf75eb0750b`
+both locally and at `/usr/local/bin/wirepup` in the VM. The live run lasted
+from 19:38:13 to 19:39:35 PDT. Real Linux peers and the installed PVXS IOC
+provided the traffic; no WirePup operation was replaced.
+
+| Usage task | Recorded verification |
+| --- | --- |
+| Unknown device | PASS: live 10-second discovery found `10.44.0.2`; the shipped LLDP fixture showed `sw-lab-1` and `Gi1/0/12` in direct and guided views |
+| Capture and replay | PASS: actual ARP capture read as events and devices; PCAPNG with `--snaplen 128 --no-promisc` reopened and independently decoded by tshark, with maximum captured length 128 |
+| Bounded ARP search | PASS: direct and guided confirmations reached the peer; independent capture counted one guided request to `192.0.2.2` |
+| Temporary connection | PASS: target-based and explicit-address direct connects were confirmed and selectively disconnected; guided recommendation/Finish restored complete client addresses, routes and the other session entry |
+| DHCP and Auto-IP | PASS by replay: retained real ACK and no-offer captures; guided general diagnosis matched its printed direct command. DHCP acquisition was not repeated in this run |
+| Passive EPICS | PASS by replay: retained real reads yielded CA/PVA answers for `WP:VALUE`; guided PV lookup and direct output/status agreed |
+| Active EPICS | PASS: direct CA and PVA searches and the guided combined search received real IOC replies; independent capture counted one guided datagram per protocol |
+| Duplicate and missing PVs | PASS by replay: both duplicate captures and the unanswered-search capture; a fresh confirmed active search for `WP:ABSENT` exited 5 |
+| TUI | PASS: live Tab/1-5 selected all views; j, Space, k and r changed the displayed event position as documented; q exited. File replay, EPICS and subnet-diagnosis views also ran in real PTYs; a five-second timeout exited 0 after 5.015 seconds |
+| Interruption and cleanup | PASS: interrupted capture reopened; interrupted probes added no address; guided Finish and selective direct cleanup preserved the control addresses and record |
+| Scripts and help | PASS: help/version and the documented JSON invocation completed; the eight existing guidance test groups also verified explicit/non-terminal dispatch |
+| Bash completion | PASS: the three existing Readline tests and the documented command, option, protocol and real capture-path expansions; two Tabs displayed every local interface candidate; no edited command was executed |
+
+All 10 guided file cases executed their displayed command in real Bash and
+matched stdout and exit status. All 21 option sections have scenario links in
+both directions. A fresh `make check TEST_FLAGS=-count=1` also passed.
+Saving a new capture and starting a TUI remain direct operations;
+the guide offers the corresponding saved-file reports.
+
+The live driver reused the shipped `tests/vm/scenarios.py` and
+`tests/vm/guided.py` helpers in a private orchestration script. It stopped its
+actors, removed only its test namespaces, restored the original session state,
+and verified unchanged management addresses/routes. Raw output, PTY transcripts,
+driver and result hashes remain local. The [walkthrough procedure](testing.md#13-usage-walkthrough-verification)
+describes how to repeat the operator checks; the numbered VM suite remains
+the separate repeatable integration suite.
+
+This run did not repeat DHCP acquisition, duplicate-IOC setup, the complete
+27-check adverse-input/cleanup suite, or reboot. Their earlier evidence below
+is retained with its original scope, rather than attributed to this executable.
 
 ## Scenario matrix
 
@@ -99,8 +143,9 @@ also passed 12 fuzz targets (five seconds each, two workers) and regenerated
 - V08 covers six passive commands on an idle isolated segment, not all host traffic.
 - V15 and V17 cover the named interruption points, not every possible schedule
   or buffered-write outcome. SIGKILL cannot execute guided cleanup.
-- TUI keys, Rocky Linux and physical switches/cables were not tested in this run.
-  Guided active cases use actual confirmations; older direct cases use `--yes`.
+- TUI keys were tested in the usage walkthrough above; the earlier guided run
+  did not cover them. Rocky Linux and physical switches/cables remain untested.
+  The usage walkthrough used real confirmations; older direct suite cases use `--yes`.
 - Darwin and Windows have compilation evidence only. Interactive behavior was
   executed on Linux; the guide supports terminal input on Linux and macOS.
 - The session lock coordinates WirePup processes. It cannot serialize an
@@ -109,8 +154,8 @@ also passed 12 fuzz targets (five seconds each, two workers) and regenerated
 - Exact Go 1.25 was not exercised. Cross-builds do not prove runtime compatibility;
   bounded fuzzing does not exhaust the input space.
 
-Management IPv4 addresses and routes were unchanged. Passing this focused suite
-does not complete the broader scenario-documentation or release-matrix work.
+Management IPv4 addresses and routes were unchanged. These focused results do
+not complete the broader release matrix.
 
 ## Retained regression captures
 

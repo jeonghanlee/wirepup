@@ -230,3 +230,50 @@ Real filesystem and
 syscall timing controls exercise cleanup failure, deadline and uncertain add;
 no decoder, diagnosis, confirmation or iproute2 operation is replaced.
 See the [VM procedure](../tests/vm/README.md) and its `guidance-results.json`.
+
+## 13. Usage walkthrough verification
+
+Use [Usage Scenarios](usage-scenarios.md) as the operator procedure and
+[CLI Reference](cli-reference.md) as the option contract. The
+[dated results](vm-test-results.md#usage-walkthrough-verification) distinguish
+local replay from fresh live execution.
+
+From the repository root:
+
+```bash
+make build
+make check TEST_FLAGS=-count=1
+python3 tests/guidance.py
+python3 tests/completion.py
+export PATH="$PWD/bin:$PATH"
+```
+
+The normal checks include `TestCLIReferenceCoversCommandHelp` and real PCAP
+regressions. Python/PTY prerequisites reported as skipped are not a pass.
+
+| Step | Action | Required observation |
+| --- | --- | --- |
+| Direct file commands | Execute the usage examples naming `testdata/` or `tests/vm/pcap/` | Recorded stdout/stderr and exit status match each Check paragraph; no VM or root required |
+| Guided file commands | Follow all three Purpose entries and the named capture views with the same files | The printed direct command runs in Bash with identical stdout/status; file results offer no active operation |
+| Offline TUI | Run both shipped-capture examples in Use the TUI; select EPICS or Diagnostics, then quit | Expected server/subnet appears; EOF leaves the display open, q exits 0; `--timeout 5s` exits without a keypress |
+| Completion | Source the shipped completion file and press Tab as the usage table describes | Command/flag/protocol/path expands; two Tabs list ambiguous local interfaces; the edited command is not executed |
+| Links and options | Follow every option link and its return scenario link; compare with leaf `--help` | Every public option/alias is covered and all anchors resolve; defaults and restrictions agree with the actual command |
+
+For live walkthroughs, use only the [prepared dedicated VM](../tests/vm/README.md)
+and its isolated namespace topology. Substitute `wp0` for the usage examples'
+placeholder interface and use the documented lab addresses/PV. The numbered VM
+runner provides the repeatable Linux/EPICS integration suite; a focused manual
+walkthrough is additional evidence, not a new result for all numbered checks.
+
+Run discovery and capture while a real peer emits traffic. Check capture files
+with WirePup and tshark. In a real terminal, exercise all TUI views and the scroll
+keys on an Events view containing more lines than the screen. Confirm direct
+and guided active actions only against lab peers. For temporary connections,
+record all client addresses, routes and the complete WirePup record before the
+operation; retain a manual address and a separate WirePup entry as controls.
+Selective disconnect and guided Finish must preserve both controls.
+
+Record the source revision, binary hash, commands/guide choices, results and
+limitations. Stop only this run's actors, remove only its namespaces, and compare
+the management addresses/routes and original session state after cleanup.
+Keep raw captures/logs local; publish the scenario outcomes and their scope.
