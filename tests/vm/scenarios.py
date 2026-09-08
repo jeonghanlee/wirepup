@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -22,6 +23,7 @@ NS = ["wpl-switch", "wpl-client", "wpl-peer", "wpl-ioc2", "wpl-dhcp"]
 CLIENT, PEER, IOC2, DHCP = NS[1:]
 PV = "WP:VALUE"
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
 PROCS = []
 RECORDS = []
 COUNTER = 0
@@ -372,12 +374,12 @@ def main():
         stop(second)
         check("V14", missing)
         check("V15", interrupt)
+        from guided import run_guided
+        check("V17", lambda: run_guided(sys.modules[__name__]))
         wp("connect", "-i", "wp0", "--address", "192.0.2.30/24", "--yes")
         (OUT / "boot-id").write_text(Path("/proc/sys/kernel/random/boot_id").read_text())
         (OUT / "session.before-reboot.json").write_text(Path("/run/wirepup/session.json").read_text())
         RECORDS.append({"id": "V16", "state": "PENDING", "detail": "Address recorded; actual VM reboot and --reboot-check required"})
-        result = run([WP], expect=2)
-        RECORDS.append({"id": "V17", "state": "NOT_IMPLEMENTED", "detail": "Bare CLI exits 2 with usage; guided entry is M19"})
         assert before == addresses(ns=None), "Management addresses changed"
         assert routes == run(["ip", "-j", "-4", "route"]).stdout, "Management routes changed"
     finally:

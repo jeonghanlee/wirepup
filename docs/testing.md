@@ -2,7 +2,7 @@
 
 The implemented [VM suite](../tests/vm/README.md) exercises live Linux and
 EPICS paths. Its [results and evidence](vm-test-results.md) distinguish passed,
-unimplemented and unverified scenarios. `TestRecordedVMCaptures` also replays
+failed and unverified scenarios. `TestRecordedVMCaptures` also replays
 the retained real captures during normal `make check`, without a VM or root.
 
 ## 1. Principles
@@ -196,3 +196,37 @@ The edited command is inspected through
 Readline and never executed. If the optional `bash-completion` package is present,
 its real autoloader is tested too; otherwise that one case is reported as skipped.
 `tests/install.bash` runs the same tests with the installed binary and completion.
+
+## 12. Guided execution tests
+
+`go test ./cmd/wirepup -run 'TestGuidedOperationRetainsDiagnosis|TestGuidancePTY' -count=1`
+builds the real CLI and drives `tests/guidance.py`. The PTY suite requires Python 3
+on Linux or macOS; a missing prerequisite is reported as skipped, not verified.
+After `make build`, `python3 tests/guidance.py` runs it against `bin/wirepup` and
+prints that executable's SHA-256. An optional first argument selects another binary.
+
+The local suite checks the stdin/stdout terminal matrix, explicit dispatch,
+redirected stderr, three file-based workflows, literal names, displayed-command
+equivalence in Bash, back/quit, queued-input boundaries, EOF and signals at actual
+input/confirmation prompts. It also checks overlong menu/file/PV rejection before
+dispatch, the 253-byte UTF-8 boundary, split UTF-8 input and canonical editing.
+A retained terminal descriptor checks that rejected input, including a queued
+tail after EOF, cannot be read by the invoking terminal owner after guide exit.
+It uses the shipped PCAPs and compares real direct
+output; it transmits nothing.
+
+V17 in the dedicated VM suite adds live guided discovery and EPICS flows,
+independent packet counts, explicit and rejected active confirmations, cancellation
+between protocols, and temporary-address ownership/cleanup. It retains another
+WirePup entry and a manually configured address as controls. G24 verifies that
+overlong guided and direct confirmations send zero frames. G25/G26 add a manual
+secondary in the guide's own subnet and require refusal with addresses, routes,
+the complete record and sysctls unchanged, with promotion disabled and enabled.
+The tests remove their own manual secondary before selective recovery.
+G27 establishes a manual primary before the guide's confirmed add, verifies the
+guide's address is secondary, and requires successful cleanup while the primary,
+routes, other session entries and sysctls remain unchanged.
+Real filesystem and
+syscall timing controls exercise cleanup failure, deadline and uncertain add;
+no decoder, diagnosis, confirmation or iproute2 operation is replaced.
+See the [VM procedure](../tests/vm/README.md) and its `guidance-results.json`.

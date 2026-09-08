@@ -13,7 +13,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: M20 is Complete, including verification and upstream landing of implementation commit `0259eb3`. Review and accept the M19 guidance plan before implementation; record implementation authorization separately. M21 has partial direct-scenario evidence; guidance/completion walkthroughs remain pending. M22 has not started.
+Next session entry point: `docs/milestone-182961f.md`: land the reviewed M19 implementation under separate Git delegation and record closure before M21. Both independent correction reviews accepted T8; fresh runs passed eight local PTY groups and G01-G27. M20 is Complete. M21 has partial direct-scenario evidence; M22 has not started.
 
 ## Milestone
 
@@ -39,12 +39,12 @@ Next session entry point: `docs/milestone-182961f.md`: M20 is Complete, includin
 | rules | M16 | diagnose --epics reports the absence of EPICS traffic | Milestone | Complete | No | D2 | one Inferred finding under `--epics` when no CA/PVA record exists; golden added; [detail](#m16---diagnose---epics-reports-the-absence-of-epics-traffic) |
 | contract | M17 | Aggregate unanswered-search findings carry no data keys | Milestone | Complete | No | D4, D5 | own codes `ca-searches-no-response`/`pva-searches-no-response` with a `searches` key; [detail](#m17---aggregate-unanswered-search-findings-carry-no-data-keys) |
 | cli | M18 | Direct execution and option reference | Milestone | Complete | No | D6 | Existing script behavior preserved; every option documented against the implementation; [detail](#m18---direct-execution-and-option-reference) |
-| cli | M19 | Guided execution from observed results | Milestone | Not started | Yes | D6, M18 | Bare terminal invocation guides the user through the existing operations and explains next actions; [detail](#m19---guided-execution-from-observed-results) |
+| cli | M19 | Guided execution from observed results | Milestone | In progress | No | D6, M18 | Bare terminal invocation guides the user through the existing operations and explains next actions; [detail](#m19---guided-execution-from-observed-results) |
 | shell | M20 | Bash completion and installation | Milestone | Complete | No | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
 | docs | M21 | Executable scenarios and bidirectional option links | Milestone | In progress | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
 | docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Not started | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
 
-Status totals: 19 Complete, 1 In progress, 2 Not started. Ready: M19; its plan acceptance and implementation authorization remain pending. No Backlog rows.
+Status totals: 19 Complete, 2 In progress, 1 Not started. Ready: none; M19 corrections and T8 review are accepted, pending Git landing and closure. No Backlog rows.
 
 ### Decisions
 
@@ -1097,7 +1097,7 @@ T2: `TestCLIReferenceCoversCommandHelp` passed against actual command help. The 
 Origin: 182961f / M19
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1117,42 +1117,103 @@ Out of scope: LLM services, remote execution, new diagnosis rules, or autonomous
 
 - Guided and direct execution use the same operation implementation and evidence model.
 - Users can complete each primary workflow without first supplying every option.
-- Cancellation and non-terminal use cannot hang or trigger active operations; confirmed actions remain bounded and reported.
+- Cancellation and non-terminal use cannot hang or start a new transmission or address add. Previously authorized cleanup may remove only the guided session's own entry; confirmed actions remain bounded and reported.
 
 ##### Dependencies And Decisions
 
-- D6, M18: guidance consumes the established command and option contract.
+- D6 defines the assigned scope. M18 is a behavioral dependency: the guide must preserve its direct-command contract in `docs/cli-design.md` under Execution modes and `docs/cli-reference.md`.
+- M20 is complete and supplies completion/install regression checks; it is not an additional dependency on starting M19.
+- ADR-0007 and ADR-0010 continue to govern active operations and recorded address ownership. The cleanup policy below is accepted for guided sessions; it does not change direct `connect` or `disconnect` semantics.
+
+##### Plan Review Baseline
+
+Baseline: `da904fa52cdd15971c9ed0718f863ffe9883e7fa`. Existing operations and the recorded examples in `docs/usage-scenarios.md` are the implementation baseline; a second decoder, diagnosis engine, or shell-command execution layer is unnecessary.
+
+- Confirmed plan gap: `cmd/wirepup/main.go` supplies output writers through `env`, while `confirm` in `cmd_active.go` reads `os.Stdin` through a new buffered reader. Guided prompts need one input owner and cancellation-aware reads, including the active confirmation.
+- Confirmed by execution on 2026-09-07: a fresh build printed usage and exited 2 on bare terminal and non-terminal invocation. At the real `probe -i lo --arp 192.0.2.1/32` confirmation prompt, SIGINT and SIGTERM each left it waiting for at least one second; a subsequent `n` ended it with exit 1. Neither run received affirmative input or reached the sweep. These are baseline observations, not M19 verification results.
+- Confirmed integration requirement: `discoverWith`, `runDiagnose`, and `runEPICSFind` currently render their results and return only an exit code. Guidance needs their structured results before rendering; it must not recover decisions by parsing text or JSON stdout.
+- Confirmed by file replay on 2026-09-07: `WP:VALUE` in `tests/vm/pcap/epics-reads.pcap` produced both CA and PVA answers at exit 0; `NOPE:PV` in `testdata/pcap/ca-search-response.pcap` produced `nothing-seen` at exit 5; EPICS-only diagnosis of `arp-autoip-selection.pcap` produced `epics-nothing-observed` at exit 0.
+- Unverified until implementation: prompt cancellation during an active operation, exact ownership after an interrupted address add, and cleanup failure handling. T3, T6, and T7 below must exercise these paths in the real implementation.
+
+##### Accepted User Flow
+
+Start with a numbered purpose menu and a visible quit choice. Read local interface names, link state, and prefixes with `interfaces.List`; show that context before asking the user to choose. Never silently select the first interface or enable a down interface. Offer a file source when live capture is unavailable. Each prompt explains its default and offers back/quit without making valid PV/file names impossible to enter; a filename is literal input, not shell syntax.
+
+| Purpose | Input requested | First operation | Result and next choice |
+| --- | --- | --- | --- |
+| Find devices | Live interface or capture file | `discover` on live input; `read --devices` on file input | Show observed devices; choose an observed IPv4 address for diagnosis, repeat observation, change source, or finish. |
+| Diagnose EPICS connectivity | Live interface or capture file; optional PV name | `epics diagnose` without a PV; passive `epics find` with a PV | Show search/answer evidence and limitations; inspect another PV, observe again, or explicitly request a bounded active search from live context. |
+| Analyze a capture | One PCAP/PCAPNG path; view choice | `read`, `read --devices`, or `diagnose --pcap` | Offer events, devices, general diagnosis, or EPICS analysis of the same file; request original host prefixes only when subnet diagnosis is wanted. |
+
+Interaction rules:
+
+- Use finite live windows: 10 seconds for guided discovery/diagnosis and the existing 5-second passive PV-find window. Show the duration before starting; let the user change it to a positive duration. Direct-command defaults remain unchanged. Replay normally runs to EOF.
+- Do not ask for every shared flag. Obtain local context automatically; ask for a PV, destination, original capture-host prefixes, or a different duration only when the selected operation needs them. Allow unknown original prefixes and explain that local-subnet conclusions need that context.
+- Keep file analysis offline. Do not derive active destinations from a capture or substitute the current host's prefixes for the capture host. Moving from file analysis to a live action requires a new live-source choice and fresh context.
+- Use existing finding codes and evidence to offer next actions. Missing observations offer another passive window/source; unanswered PV searches may offer an explicitly selected active search; a `temporary-secondary-address` recommendation may offer `connect`; duplicate claims offer inspection, not automatic repair. An empty inventory is not evidence that a network is empty.
+- Print the exact equivalent direct invocation before each operation. Pass the same values to the shared Go operation without a shell. Quote every displayed argument for Bash, preserve literal spaces/quotes/dollar signs, and use an unambiguous path for dash-prefixed files. If a value cannot round-trip through the existing command grammar, explain that limitation and request a representable input; do not silently split it.
+- After an operation, retain its result and exit status while offering further choices. Ordinary quit before any operation or after successful work returns 0; finishing after an unresolved operation error returns that error's existing status. Cancellation by EOF or signal returns 1 after cleanup, unless cleanup itself fails. No new public exit-code family is introduced.
+
+##### Accepted Active And Cleanup Rules
+
+The user must choose an active action and confirm the actual target list, protocol, packet budget, and host change. A menu choice alone is not confirmation. Empty input, EOF, an incomplete affirmative line, and cancellation never authorize action. Interactive answers are limited to 253 bytes before newline, including direct confirmations; reject longer input before dispatch, discard its queued tail even across EOF, and preserve terminal settings. This limit does not apply to explicit command-line arguments. Do not manufacture `--yes`, automatically invoke `sudo`, or retry an active operation. Keep the existing ARP and CA/PVA bounds and use their existing plan and execution reporting.
+
+For a live PV search, show the resolved per-protocol destinations and explain that `-i` supplies capture/context but does not bind the UDP socket; OS routing still applies. A bounded ARP request requires an explicit address or prefix, never a range inferred from unrelated traffic. Privilege errors offer the safely quoted direct command and a return to passive/file work.
+
+For a guided temporary connection, the accepted lifecycle is: the confirmation names the add and the later removal; the guide stays open while the address is useful, and removes only the exact entry successfully added by this guided session when the user finishes, sends EOF, or interrupts. Direct `connect` continues to leave its address until explicit `disconnect`. Existing WirePup entries and independently configured addresses are never cleanup candidates.
+
+Track the successful `networkcfg.Entry` returned by the shared add operation, including identity and add time; do not infer ownership from a before/after address-list difference or call unfiltered `disconnect`. Revalidate ownership before removal and stop with an explicit recovery instruction if it changed. Cancellation before add must prevent the add; cancellation during/after add must reconcile the recorded outcome before exit. Use a separate bounded cleanup context so a cancelled observation context cannot skip cleanup; the deadline must reach the real iproute2 subprocess, not just stop waiting for it. If removal fails or the process is killed uncatchably, preserve the session record and print the exact selective recovery command when possible; do not claim restoration.
+
+Before deleting a guide-owned primary, check the full live IPv4 address set. Another address in its subnet requires refusal at exit 1 with addresses, routes and the complete record retained, regardless of secondary-promotion settings. A guide-owned secondary remains removable while its manual primary survives. Do not change sysctls. The recovery instruction must state that direct `disconnect` lacks this guard and can trigger Linux secondary deletion; resolve the dependency before recovery.
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-07; the three guided workflows and guided-entry cleanup rule.
+Implementation Authorization: 2026-09-07; proceed with this M19 plan, including implementation and verification. The same day's explicit direction to apply the re-review findings authorizes the complete-input and shared-subnet cleanup corrections and their verification.
 Superseded Plan Artifacts: none
 
-1. Implement terminal detection and guided entry according to M18.
-2. Add purpose and context selection over existing interface discovery, replay, and diagnosis.
-3. Map findings to explanations and next actions, display equivalent commands, and integrate confirmation and cancellation.
+1. In `cmd/wirepup/main.go` and a new `cmd_guide.go`, route only bare invocation with terminal stdin and stdout into guidance. Explicit help/commands remain direct; redirected or closed input/output retains usage and exit 2. Give the guide one cancellation-aware input reader shared with its confirmations. Display guided questions on terminal stdout even when stderr is redirected; direct-command prompts keep their existing stderr destination. Verify dispatch and input lifetime with T1 and T3.
+2. Factor the existing bodies in `cmd_discover.go`, `cmd_diagnose.go`, and `cmd_epics.go` only as needed to return structured outcomes, timestamps, statistics, and errors to both direct and guided callers. Preserve `runSource`, `wantPacket`, diagnosis rules, existing renderers, and exit mapping. Reuse `cmd_read.go` for event/device replay. T2 and T4 compare real outputs; do not add an independent inference path.
+3. Implement the three purpose flows, contextual selections, finite windows, equivalent-command display, and finding-based next choices in `cmd_guide.go`. Keep unsupported or ambiguous values out of the invocation rather than silently changing them. Cover all three flows and empty/invalid/unknown-context cases in T2 and T3.
+4. Reuse the active planning and execution bodies in `cmd_active.go` and `cmd_epics.go`. Provide the guide's input reader to the existing confirmation point; check cancellation immediately before each send/add and stop subsequent protocol searches after cancellation. Return the actual added entry to the guide. If needed, add a narrowly scoped ownership/cancellation check to `internal/networkcfg`; retain the session format and direct-operation behavior. Verify passive boundaries, bounded sends, and cleanup through T5-T7.
+5. Add `cmd/wirepup/guide_test.go` and `tests/guidance.py` using the real executable and PTYs. Extend the isolated VM runner/catalog for guided scenarios; V17 must exercise terminal guidance rather than its current non-terminal usage check. Preserve that non-terminal check under T1. Keep full logs local and record each scenario's actual outcome; no future check is marked PASS from this plan.
+6. Update the execution-mode paragraphs in `README.md`, `docs/cli-design.md`, and `docs/cli-reference.md`, plus the changed test procedures in `docs/testing.md` and `tests/vm/README.md`, only when their behavior exists. Record T results here. M21 owns the full scenario/option walkthrough work; M22 owns broader documentation cleanup. Before closure, perform second-person and third-person review of the implementation and its reader-facing text, including an independent review of active/input/cleanup changes.
 
 ##### Test Plan
 
 | Label | Layer | Method | Environment | Expected Result |
 | --- | --- | --- | --- | --- |
-| T1 | PTY integration | Drive the real CLI through fixture analysis, invalid input, cancellation, EOF, and interruption; compare with the displayed direct command. | Debian 13, PTY, shipped PCAPs | Navigable guidance and equivalent results. |
-| T2 | Non-terminal integration | Run bare and explicit invocations with redirected or closed stdin under a bounded timeout. | Debian 13 shell | No interactive wait; documented help or usage status; direct commands unchanged. |
-| T3 | Safety integration | Capture traffic during passive and cancelled guided workflows; exercise a confirmed temporary-address action and its cleanup. | Disposable Linux namespace lab with required capabilities | Passive and cancelled paths produce no probes or host changes; confirmed action matches its plan and cleanup restores state. |
+| T1 | Entry integration | Extend `TestDirectInvocationNonTerminal`; run the built CLI with terminal/non-terminal stdin and stdout independently, redirected stderr, closed descriptors, explicit help, and invalid explicit arguments under a deadline. | Debian 13, real PTYs and pipes | Only bare invocation with both streams on terminals enters guidance; guided questions remain visible when stderr is redirected; all other invocation contracts remain unchanged. |
+| T2 | Workflow integration | `tests/guidance.py` drives all three purpose flows over `testdata/pcap/` fixtures (`same-l2-different-subnet.pcap`, `ca-search-no-response.pcap`, `ca-duplicate-servers.pcap`, `arp-autoip-selection.pcap`) and `tests/vm/pcap/epics-reads.pcap`. Execute each displayed direct command and compare operation results/status. | Debian 13, fresh binary, PTY, no root | Same devices, finding codes, data, evidence and replay timestamps; active/host-context suggestions obey source context. Known, unanswered, absent and duplicate PVs remain distinct. |
+| T3 | Input and cancellation | Exercise invalid selections, back/quit, literal special-character paths/PVs, partial lines, EOF, SIGINT and SIGTERM while selecting, reading input, observing, and confirming. Test cancellation before operation dispatch and between active protocol steps. | Real CLI/PTY; active stages in disposable VM | No hang, evaluated shell input, stale answer reuse, affirmative EOF, or new operation after cancellation. Prompt regression must fail on the baseline waiting behavior. |
+| T4 | Direct regression | Run `make check`, then `make build` and `python3 tests/completion.py`; run `bash tests/install.bash` and `python3 tests/install-confirmation.py` against their temporary installed executables. | Debian 13, repository and temporary install prefix | Existing direct output, schema, help, completion and exit contracts pass; unrelated goldens stay unchanged. |
+| T5 | Passive safety | Extend `tests/vm/scenarios.py` with PTY-driven live discovery/EPICS guidance and cancelled active selections. Capture the guide host's source MAC at the peer on the idle isolated bridge; compare addresses/routes before and after. | Dedicated Debian 13 VM, isolated namespaces, tcpdump/tshark | Zero WirePup transmissions for passive or pre-confirmation-cancelled flows; addresses/routes unchanged. Existing direct passive checks remain separate. |
+| T6 | Active integration | Drive explicitly confirmed ARP and CA/PVA actions against real kernel/IOC peers; compare captured destinations, counts, protocols, replies and reported execution with the displayed plan. Include negative/default/EOF confirmation, privilege failure and interruption. | Dedicated VM and real peers; no internal mocks | Only the confirmed bounded action runs; absence remains qualified, pre-confirmation refusals send nothing, cancellation starts no later action. |
+| T7 | Address lifecycle | Drive guided `connect`, conflict refusal, quit, EOF and interruption before/during/after add. Retain a separate recorded entry and an independently configured address as controls. Exercise removal failure and subsequent selective recovery; inspect real addresses, routes and session records. | Disposable VM; real ARP and iproute2; isolated session storage | Only the guided entry is cleaned up; other entries/addresses survive; failure retains recovery evidence and a nonzero outcome. Direct connect/disconnect behavior remains unchanged. |
+| T8 | Reader and record check | Follow each changed usage/procedure passage against the installed CLI. Reconcile VM catalog/results and M19 verification rows with completed runs. | Repository documents, installed CLI, local run evidence | Current behavior is distinguished from planned work; all required scenarios have recorded outcomes and limitations; no guide claim rests on old V17 usage-only evidence. |
+
+Use one freshly built executable per verification set and record its hash. Integration checks run the shipped operations and shipped captures end to end; filesystem/clock/transport boundary controls may induce failures, but decoder, diagnosis, confirmation, and network-configuration operations are not replaced. A skipped or unavailable privileged scenario remains Pending and prevents M19 closure.
 
 ##### Verification Results
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Debian 13 PTY | Pending | none |
-| T2 | Not run | Debian 13 shell | Pending | none |
-| T3 | Not run | Linux namespace lab | Pending | none |
+| T1 | 2026-09-07 | Debian 13 PTYs/pipes | PASS | `TestDirectInvocationNonTerminal` and `tests/guidance.py`: terminal stream matrix, closed descriptors, redirected stderr and explicit dispatch; no skip. |
+| T2 | 2026-09-07 | Debian 13 PTY and shipped captures | PASS | All three flows; displayed commands executed in real Bash; outputs/status equal. `TestGuidedOperationRetainsDiagnosis` compares typed evidence/data/timestamp with emitted JSON. |
+| T3 | 2026-09-07 | Debian 13 PTY and dedicated VM | PASS | Eight PTY groups on the corrected binary: overlong menu/file/PV refusal, exact 253-byte UTF-8 boundary, canonical editing and no readable rejected tail even after EOF. G02/G05/G07-G12/G18-G24 cover active cancellation and confirmation; G24 sends zero frames for malformed long approvals. |
+| T4 | 2026-09-07 | Debian 13 repository/install prefix | PASS with dated scope | Fresh `make check TEST_FLAGS=-count=1` and build pass; eight real CLI PTY groups also pass under race instrumentation. Three completion tests, temporary-prefix install/check and eight replacement-confirmation tests passed on the earlier f4af7 binary and were not repeated after these corrections. |
+| T5 | 2026-09-07 | Isolated VM namespaces | PASS | Fresh G01/G02/G23/G24 independently decode zero source-MAC frames and preserve addresses/routes. Management state is unchanged. V08 remains earlier full-run evidence. |
+| T6 | 2026-09-07 | Isolated VM and real kernel/IOC peers | PASS | Fresh G03-G06/G20/G23/G24: confirmed ARP/CA/PVA plans match captured traffic; replies, privilege refusal, signal/EOF cancellation, fresh confirmation and malformed-approval refusal all pass. |
+| T7 | 2026-09-07 | Isolated VM and real iproute2 | PASS | Fresh G07-G19/G21-G22 pass. G25/G26 refuse primary cleanup with promotion off/on and preserve addresses, routes, full session and sysctls; selective recovery succeeds after removing the test secondary. G27 removes a real guide-owned secondary at exit 0 while preserving its manual primary and all controls. No new reboot run. |
+| T8 | 2026-09-07 16:36 PDT | Documents, installed CLI and actual run records | PASS | Both independent correction reviewers accepted the final implementation and second-person reader records. Their real EOF-tail checks pass; final G01-G27 hashes and owned-secondary raw state match the reported outcomes. Earlier reboot/install evidence remains explicitly historical. |
+
+The [VM results](vm-test-results.md) identify the corrected executable (`52879872eac29d9069d8ff9347ea7e38e5ca798eeb1ebee2396e53c526fb8e68`) and its 27 PASS guided cases in `wirepup-m19-corrections-1ockrjfs`. Local checks passed eight PTY groups, common checks and eight race-instrumented CLI PTY groups; Darwin amd64 and Windows amd64 compiled. Earlier full-run V01-V17/reboot evidence uses f4af7 in `wirepup-scenarios-l5k25goz` and `wirepup-scenarios-nql_1x9z`; it is historical, not a corrected-binary rerun. Linux arm64, installation and completion remain earlier evidence. Full logs stay local. Runtime behavior outside Linux, physical hardware and exhaustive scheduling remain unverified.
 
 ##### Closure Evidence
 
-- none
+- 2026-09-07: the owner authorized correction of the two re-review defects. Complete-input refusal and shared-subnet preservation are implemented and verified as recorded above. Both independent implementation and reader reviews accepted the corrections at 16:36 PDT; no in-scope finding remains. Execution scope and limits are recorded in [VM Scenario Results](vm-test-results.md).
+- Git landing and formal closure are pending; M19 remains In progress. No commit or push was performed for this implementation.
 
 #### M20 - Bash completion and installation
 

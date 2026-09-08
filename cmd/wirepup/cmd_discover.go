@@ -76,6 +76,10 @@ func discoverWith(ctx context.Context, e *env, g *globalFlags) int {
 	reportStats(e, g, ds, cs)
 	at := reportTime(g, last)
 	doc := output.DevicesFrom(src.Name(), at, ouiPath, table)
+	if e.result != nil {
+		e.result.Devices = &doc
+		e.result.Source, e.result.At = doc.Source, doc.GeneratedAt
+	}
 	if g.json {
 		jsonout.Document(e.stdout, doc)
 	} else if len(doc.Devices) > 0 {

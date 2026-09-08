@@ -4,15 +4,23 @@ For defaults, option applicability, combinations, and current edge behavior, see
 
 ## Execution modes
 
-Current direct execution uses `wirepup <command> [options]`. Bare invocation prints usage to stderr and exits 2; interactive guidance is not implemented yet.
+Direct execution uses `wirepup <command> [options]`. Bare invocation with terminal stdin and stdout enters guidance on Linux and macOS. Live capture and host changes require Linux.
 
-The guided entry contract is:
+The guided entry behavior is:
 
 - Bare invocation with terminal stdin and stdout enters purpose-based guidance. If either stream is not a terminal, print usage to stderr and exit 2 without waiting for input.
 - Explicit commands and help always use direct dispatch, preserving existing output, exit status, and confirmation behavior. Invalid explicit arguments return an error instead of silently opening guidance.
 - Guidance asks only for missing context, starts passively, interprets existing findings, and shows an equivalent explicit command for repeat use.
 - The guide shows and confirms each proposed transmission or host configuration change before calling the existing operation. Cancellation, EOF, and interruption must not authorize a subsequent active action.
 - Guidance reuses existing command operations and evidence. It does not create an independent decoder or diagnosis engine.
+
+Choose **Find devices**, **Diagnose EPICS connectivity**, or **Analyze a capture file**. Live work asks for a local interface and a positive observation duration: 10 seconds for discovery/diagnosis, 5 seconds for a named PV. File work stays offline; general subnet diagnosis asks for the original capture host's prefixes, with unknown allowed. The current host's addresses are not substituted.
+
+Menus accept a number, `b` for back, or `q` for quit. Free-text prompts use `/back` and `/quit`; double the leading slash to enter either word literally (`//quit` becomes `/quit`). Names such as `b` and `q` remain literal in free text. Back returns to the purpose or next-action menu. Paths containing commas or outer whitespace and PV names beginning with a dash (except the single name `-`) are refused because the direct positional/source grammar cannot represent them unambiguously. Displayed commands quote every argument for Bash; execution passes the original arguments directly to Go, never to a shell.
+
+Guided prompts and operation output use terminal stdout, including when stderr is redirected. Wait for each question before typing; queued input is discarded between questions and input outside a prompt cannot answer a later confirmation. Interactive answers, including direct-command confirmations, accept at most 253 bytes before the newline (UTF-8 characters may use several bytes). A longer answer stops the interaction with exit 1 before selection or execution; it is never accepted as a truncated value. Use shorter input or an explicit command for longer arguments; command-line arguments do not have this prompt limit. Normal terminal editing keys and settings are preserved. A completed operation retains its status until another operation finishes: quit returns 0 after successful work, or the last operation's error status. EOF or a signal returns 1 after cleanup unless cleanup itself fails. Repeating an active operation still requires a fresh confirmation. No privilege escalation or automatic active retry is performed.
+
+A guided temporary connection confirms both the address add and its later removal. Keep the guide open while using that address. Finish, EOF and catchable interruption attempt removal of only the exact entry successfully added by this guide. Cleanup has a separate five-second deadline, including lock acquisition and the actual iproute2 process. If the guide's address is primary and another address shares its subnet, cleanup refuses deletion with exit 1 and retains both addresses, routes and the complete recovery record. This conservative check applies even when `promote_secondaries` is enabled; WirePup does not change that setting. An uncertain add, changed ownership or failed removal also preserves recovery evidence and reports failure. Inspect the session file and interface and resolve the reported condition before using the printed selective `disconnect` command: direct disconnect matches interface/address and does not enforce the guide's full ownership or shared-subnet checks. Deleting a primary manually can remove its secondary addresses too. SIGKILL or host failure cannot run cleanup; the existing session-file recovery procedure applies. Direct `connect` still leaves its address for explicit `disconnect`.
 
 ## Goal
 
@@ -126,7 +134,7 @@ sudo wirepup disconnect
 sudo wirepup disconnect -i enp3s0 192.168.1.254
 ```
 
-Removes only the addresses recorded in the session file, drops the record of an address that is already gone, and never touches anything else.
+Requests deletion of the addresses recorded in the session file and drops the record of an address that is already gone. Unlike guided cleanup, direct `disconnect` does not check full ownership or shared-subnet dependencies. Linux can also remove manual secondary addresses when deleting a recorded primary address. Inspect and resolve those dependencies before using this command for recovery.
 
 ## `wirepup tui`
 

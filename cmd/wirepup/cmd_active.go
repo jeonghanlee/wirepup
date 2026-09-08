@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -10,8 +9,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"golang.org/x/term"
 
 	"github.com/jeonghanlee/wirepup/internal/active"
 	"github.com/jeonghanlee/wirepup/internal/device"
@@ -44,16 +41,32 @@ func (a *activeFlags) register(fs interface {
 // confirm asks on the terminal unless --yes was given. Without a
 // terminal the action is refused so that a script cannot change the
 // host by accident.
-func confirm(e *env, a *activeFlags, stdin io.Reader) error {
+func confirm(ctx context.Context, e *env, a *activeFlags, stdin io.Reader) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if a.yes {
 		return nil
 	}
 	f, ok := stdin.(*os.File)
-	if !ok || !term.IsTerminal(int(f.Fd())) {
+	if !ok || !terminalFile(f) {
 		return fmt.Errorf("%w: no terminal to confirm on; pass --yes to proceed", errUsage)
 	}
-	fmt.Fprint(e.stderr, confirmPrompt)
-	line, _ := bufio.NewReader(stdin).ReadString('\n')
+	if e.input == nil {
+		readCtx, stop := context.WithCancel(ctx)
+		e.input = newPromptInput(readCtx, f, nil)
+		defer func() { stop(); <-e.input.done }()
+	}
+	line, err := e.input.line(ctx, func() { fmt.Fprint(e.stderr, confirmPrompt) })
+	if err != nil {
+		if errors.Is(err, errPromptTooLong) {
+			fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
+		}
+		return errAborted
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	switch strings.ToLower(strings.TrimSpace(line)) {
 	case "y", "yes":
 		return nil
@@ -106,7 +119,7 @@ func runProbe(ctx context.Context, e *env, args []string) int {
 	}
 	plan := active.Plan{Interface: g.iface, Protocol: "ARP request", Targets: hosts, Count: len(hosts), Rate: active.RatePerSecond}
 	fmt.Fprintf(e.stderr, "ACTIVE: will %s\n", plan)
-	if err := confirm(e, &a, os.Stdin); err != nil {
+	if err := confirm(ctx, e, &a, e.inputFile()); err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return activeExit(err)
 	}
@@ -216,7 +229,11 @@ func runConnect(ctx context.Context, e *env, args []string) int {
 	report.Recommended = append(report.Recommended, diagnose.Finding{Code: "requested-action", Text: fmt.Sprintf("add %s to %s after an ARP probe: %s", requested, g.iface, strings.Join(argv, " ")), Data: map[string]string{"argv": strings.Join(argv, " ")}})
 	renderReport(e, &g, activeSourceName(&g), report)
 	fmt.Fprintf(e.stderr, "ACTIVE: will send %d ARP probes for %s on %s, then run: %s\n", active.ProbeCount, requested.Addr(), g.iface, strings.Join(argv, " "))
-	if err := confirm(e, &a, os.Stdin); err != nil {
+	if e.guided {
+		fmt.Fprintf(e.stderr, "This guide will remove only %s from %s when you finish or interrupt. Keep the guide open while using the address.\n", requested, g.iface)
+		fmt.Fprintf(e.stderr, "Recovery command: %s\n", directCommand([]string{"disconnect", "-i", g.iface, requested.String()}))
+	}
+	if err := confirm(ctx, e, &a, e.inputFile()); err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return activeExit(err)
 	}
@@ -233,7 +250,10 @@ func runConnect(ctx context.Context, e *env, args []string) int {
 		fmt.Fprintf(e.stderr, "wirepup: %v: %s is already in use by %s\n", errUnsafe, requested.Addr(), probe.Conflict.MAC)
 		return exitUnsafe
 	}
-	entry, err := mgr.Add(g.iface, requested)
+	entry, err := mgr.AddContext(ctx, g.iface, requested)
+	if entry.Address.IsValid() && e.result != nil {
+		e.result.Added = append(e.result.Added, entry)
+	}
 	if err != nil {
 		renderExecuted(e, &g, executed)
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
@@ -358,6 +378,7 @@ func renderReport(e *env, g *globalFlags, source string, r diagnose.Report) {
 // renderReportAt renders with an explicit generation time, which file
 // replay sets to the last packet so that output is reproducible.
 func renderReportAt(e *env, g *globalFlags, source string, r diagnose.Report, at time.Time) {
+	e.recordReport(source, at, r)
 	doc := output.DiagnosisFrom(source, at, r)
 	if g.json {
 		jsonout.Document(e.stdout, doc)

@@ -136,6 +136,7 @@ func runSource(ctx context.Context, src capture.Source, s sink) (decode.Stats, c
 
 // reportStats prints the closing counters unless quiet.
 func reportStats(e *env, g *globalFlags, ds decode.Stats, cs capture.Stats) {
+	e.recordStats(ds, cs)
 	if g.quiet {
 		return
 	}

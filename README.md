@@ -14,11 +14,20 @@ WirePup is **not** intended to replace Wireshark. Wireshark is a general-purpose
 - Are EPICS Channel Access (CA) or PVAccess (PVA) discovery packets present?
 - Why is an IOC or PV not visible from this host?
 
+## Start with a task
+
+Run `wirepup` in a terminal to choose device discovery, EPICS diagnosis, or capture-file analysis. The guide asks for an interface or file, begins with passive observation, and shows the equivalent direct command before each operation. Live observation defaults to 10 seconds, or 5 seconds for a named PV; you can change the duration.
+
+Use a numbered choice, `b` to go back, or `q` to finish. Free-text prompts use `/back` and `/quit` instead, so ordinary names remain usable. Each interactive answer accepts at most 253 bytes; a longer answer stops the interaction without executing it. Active transmission or a temporary address change requires a separate confirmation. Keep the guide open while using its temporary address. On finish or interruption it removes that address only when the ownership and address checks permit it. If deleting a primary address could also remove a manual secondary, the guide refuses cleanup and retains the addresses and recovery record. Inspect the reported condition before manual recovery.
+
+For scripts or repeat work, use `wirepup <command> [options]`. Bare invocation with redirected stdin or stdout prints usage and exits 2 without a prompt. See [execution modes](docs/cli-design.md#execution-modes) for cancellation and recovery, or the [option reference](docs/cli-reference.md) for direct commands.
+
 ## Project identity
 
 **Name:** WirePup  
 **Tagline:** A lightweight network discovery and diagnostic tool for engineers.  
-**License:** Apache License 2.0  
+**Copyright:** 2026 Lee, Jeong Han\
+**License:** [Apache License 2.0](LICENSE)\
 **Initial platform:** Linux  
 **Initial implementation language:** Go (1.25 or newer)  
 **Development model:** local-first, documentation-first, multi-agent assisted
@@ -266,8 +275,8 @@ from features and environments that still need implementation or validation.
 | Remove a temporary address WirePup added | `disconnect` | yes (host change) |
 
 The bottom three change the host or transmit: `probe` and `connect` ask
-before acting unless `--yes`; `disconnect` removes only the addresses
-WirePup recorded. `epics find --active` also transmits after confirmation
+before acting unless `--yes`; `disconnect` requests deletion of the addresses
+WirePup recorded, without a confirmation prompt. `epics find --active` also transmits after confirmation
 unless `--yes`. The remaining modes are passive.
 
 ## Example: unknown device
@@ -371,8 +380,9 @@ Proceed? [y/N]
 `connect` is one of the three active commands: it observes passively first,
 prints the exact `ip` command it intends to run, ARP-probes the candidate,
 and refuses (exit 6) if anything answers. Nothing changes without the
-confirmation or `--yes`. `wirepup disconnect` later removes only what WirePup
-added.
+confirmation or `--yes`. `wirepup disconnect` later requests deletion of recorded
+addresses. Inspect shared-subnet dependencies first: Linux can also remove manual
+secondaries when deleting a primary. See the [recovery rules](docs/cli-design.md#wirepup-disconnect).
 
 ## Example: interactive view (TUI)
 

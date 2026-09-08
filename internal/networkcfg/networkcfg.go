@@ -7,6 +7,7 @@
 package networkcfg
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -34,6 +36,14 @@ const (
 	labelMaxLen = 15
 )
 
+// Bounds for session contention, local inspection, and subprocess pipe drain.
+const (
+	lockTimeout       = 5 * time.Second
+	inspectionTimeout = 5 * time.Second
+	waitInterval      = 10 * time.Millisecond
+	ipWaitDelay       = 100 * time.Millisecond
+)
+
 // ipPaths are tried in order; PATH is never consulted.
 var ipPaths = []string{"/usr/sbin/ip", "/sbin/ip", "/bin/ip"}
 
@@ -42,9 +52,22 @@ var (
 	ErrNoIP        = errors.New("networkcfg: iproute2 executable not found")
 	ErrPrivilege   = errors.New("networkcfg: changing addresses requires CAP_NET_ADMIN")
 	ErrNotRecorded = errors.New("networkcfg: address is not in the session file")
+	// ErrAlreadyRecorded refuses an add that would duplicate a recovery record.
+	ErrAlreadyRecorded = errors.New("networkcfg: address already has a session record")
+	// ErrOwnershipChanged means stored or live identity no longer matches the
+	// confirmed Entry. The record is retained for explicit selective recovery.
+	ErrOwnershipChanged = errors.New("networkcfg: address ownership changed")
+	// ErrUnsafeRemoval means deleting the owned primary could also remove
+	// another address. The complete session record is retained for recovery.
+	ErrUnsafeRemoval = errors.New("networkcfg: primary address has another address in its subnet")
+	// ErrOutcomeUnknown means ip started but its outcome was not confirmed.
+	// The attempted change remains recorded; it does not confer ownership.
+	ErrOutcomeUnknown = errors.New("networkcfg: ip outcome unknown; session record retained for selective recovery")
 )
 
-// Entry is one address WirePup added.
+// Entry records one attempted address add. Only a successful Add or
+// AddContext return establishes ownership; a loaded entry can describe an
+// interrupted operation whose outcome requires explicit selective recovery.
 type Entry struct {
 	Interface string       `json:"interface"`
 	Index     int          `json:"ifindex"`
@@ -61,7 +84,8 @@ type Session struct {
 	Entries []Entry `json:"entries"`
 }
 
-// Runner executes a command and returns its combined output.
+// Runner executes a command and returns its combined output. It is a
+// synchronous legacy unit-test hook without subprocess cancellation support.
 type Runner func(path string, args ...string) ([]byte, error)
 
 // Manager applies and records changes.
@@ -72,9 +96,10 @@ type Manager struct {
 	Version string
 }
 
-// New returns a manager for the real host.
+// New returns a manager for the real host. With Runner nil, operations run
+// exec.CommandContext and wait for the child; cancellation reaches ip itself.
 func New(version string) *Manager {
-	return &Manager{Path: SessionPath, IPPath: findIP(), Runner: execRunner, Version: version}
+	return &Manager{Path: SessionPath, IPPath: findIP(), Version: version}
 }
 
 func findIP() string {
@@ -86,8 +111,26 @@ func findIP() string {
 	return ""
 }
 
-func execRunner(path string, args ...string) ([]byte, error) {
-	return exec.Command(path, args...).CombinedOutput()
+// runIP separates confirmed success, known failure, and an uncertain outcome.
+// A zero child exit status confirms success even if cancellation follows it.
+func (m *Manager) runIP(ctx context.Context, args ...string) (out []byte, err error, unknown bool) {
+	if err := ctx.Err(); err != nil {
+		return nil, err, false
+	}
+	if m.Runner != nil {
+		out, err = m.Runner(m.IPPath, args...)
+		return out, err, err != nil && (ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
+	}
+	cmd := exec.CommandContext(ctx, m.IPPath, args...)
+	cmd.WaitDelay = ipWaitDelay
+	out, err = cmd.CombinedOutput()
+	if cmd.ProcessState != nil && cmd.ProcessState.Success() {
+		return out, nil, false
+	}
+	// Start failure cannot have applied an address. A started process killed
+	// by a signal, cancellation, or an unsuccessful wait has an unknown outcome.
+	unknown = cmd.Process != nil && (ctx.Err() != nil || cmd.ProcessState == nil || !cmd.ProcessState.Exited())
+	return out, errors.Join(err, ctx.Err()), unknown
 }
 
 // Label returns the address label for an interface, or "" when the
@@ -113,6 +156,14 @@ func (m *Manager) Load() (Session, error) {
 		return Session{}, fmt.Errorf("networkcfg: session file: %w", err)
 	}
 	return s, nil
+}
+
+func (m *Manager) loadForUpdate() (Session, error) {
+	s, err := m.Load()
+	if err == nil && s.Version != SessionVersion {
+		err = fmt.Errorf("networkcfg: unsupported session version %d", s.Version)
+	}
+	return s, err
 }
 
 func (m *Manager) save(s Session) error {
@@ -149,38 +200,69 @@ func DelArgv(e Entry) []string {
 	return []string{"-4", "address", "del", e.Address.String(), "dev", e.Interface}
 }
 
-// Add records then applies a temporary address. On failure the record
-// is removed again.
+// Add is AddContext with a background context. It leaves the address
+// configured until explicit removal, preserving the direct-command contract.
 func (m *Manager) Add(iface string, addr netip.Prefix) (Entry, error) {
+	return m.AddContext(context.Background(), iface, addr)
+}
+
+// AddContext records then applies a temporary IPv4 address. It returns an
+// owned Entry only after confirmed ip success, including success immediately
+// followed by cancellation. A cancelled or uncertain running ip leaves its
+// record and returns ErrOutcomeUnknown with a zero Entry. A known failure
+// rolls back only this record and reports any failure to save that rollback.
+// Session writers serialize across processes with a bounded, cancellable wait.
+func (m *Manager) AddContext(ctx context.Context, iface string, addr netip.Prefix) (Entry, error) {
+	if err := ctx.Err(); err != nil {
+		return Entry{}, err
+	}
 	if m.IPPath == "" {
 		return Entry{}, ErrNoIP
 	}
+	if !addr.IsValid() || !addr.Addr().Is4() {
+		return Entry{}, errors.New("networkcfg: temporary address must be an IPv4 prefix")
+	}
+	lock, err := m.lock(ctx)
+	if err != nil {
+		return Entry{}, err
+	}
+	defer lock.Close()
 	ifi, err := net.InterfaceByName(iface)
 	if err != nil {
 		return Entry{}, fmt.Errorf("networkcfg: interface %q: %w", iface, err)
+	}
+	s, err := m.loadForUpdate()
+	if err != nil {
+		return Entry{}, err
+	}
+	for _, x := range s.Entries {
+		if x.Interface == ifi.Name && x.Address.Addr() == addr.Addr() {
+			return Entry{}, ErrAlreadyRecorded
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return Entry{}, err
 	}
 	e := Entry{
 		Interface: ifi.Name,
 		Index:     ifi.Index,
 		Address:   addr,
 		Label:     Label(ifi.Name),
-		AddedAt:   time.Now(),
+		AddedAt:   time.Now().UTC(),
 		Version:   m.Version,
 		Argv:      append([]string{m.IPPath}, AddArgv(ifi.Name, addr)...),
-	}
-	s, err := m.Load()
-	if err != nil {
-		return Entry{}, err
 	}
 	s.Entries = append(s.Entries, e)
 	if err := m.save(s); err != nil {
 		return Entry{}, err
 	}
-	out, err := m.Runner(e.Argv[0], e.Argv[1:]...)
+	out, err, unknown := m.runIP(ctx, e.Argv[1:]...)
 	if err != nil {
+		if unknown {
+			return Entry{}, errors.Join(ErrOutcomeUnknown, wrapIPError(err, out), ctx.Err())
+		}
 		s.Entries = s.Entries[:len(s.Entries)-1]
-		_ = m.save(s)
-		return Entry{}, wrapIPError(err, out)
+		return Entry{}, errors.Join(wrapIPError(err, out), m.save(s))
 	}
 	return e, nil
 }
@@ -188,7 +270,13 @@ func (m *Manager) Add(iface string, addr netip.Prefix) (Entry, error) {
 // Remove deletes one recorded address and drops its record. When the
 // address is already gone the record is dropped without running ip.
 func (m *Manager) Remove(e Entry) (ran bool, err error) {
-	s, err := m.Load()
+	ctx := context.Background()
+	lock, err := m.lock(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer lock.Close()
+	s, err := m.loadForUpdate()
 	if err != nil {
 		return false, err
 	}
@@ -206,14 +294,90 @@ func (m *Manager) Remove(e Entry) (ran bool, err error) {
 			return false, ErrNoIP
 		}
 		argv := DelArgv(e)
-		out, err := m.Runner(m.IPPath, argv...)
+		out, err, unknown := m.runIP(ctx, argv...)
 		if err != nil {
+			if unknown {
+				return true, errors.Join(ErrOutcomeUnknown, wrapIPError(err, out))
+			}
 			return true, wrapIPError(err, out)
 		}
 		ran = true
 	}
 	s.Entries = append(s.Entries[:idx], s.Entries[idx+1:]...)
 	return ran, m.save(s)
+}
+
+// RemoveOwned removes only the complete stored identity of a confirmed Entry
+// returned by Add or AddContext. It also checks the current interface index,
+// address, prefix and label; mismatches and inspection errors retain the record.
+// Shared-subnet primary deletion is refused because Linux may remove secondary
+// addresses with it. No sysctl or unrelated address is changed to permit it.
+// Callers must supply a separate cleanup context if their work was cancelled.
+// The deadline reaches lock waits, live inspection and the real ip subprocess.
+// ran reports whether deletion was attempted, not whether it succeeded.
+// An absent address drops its exact record; an absent record and address are
+// an idempotent no-op unless a replacement identity is found. A live address
+// without its record returns ErrNotRecorded and is never deleted.
+func (m *Manager) RemoveOwned(ctx context.Context, e Entry) (ran bool, err error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if e.Interface == "" || e.Index <= 0 || !e.Address.IsValid() || !e.Address.Addr().Is4() || e.AddedAt.IsZero() {
+		return false, fmt.Errorf("%w: invalid owned entry", ErrOwnershipChanged)
+	}
+	lock, err := m.lock(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer lock.Close()
+	s, err := m.loadForUpdate()
+	if err != nil {
+		return false, err
+	}
+	idx := -1
+	for i, x := range s.Entries {
+		if sameEntry(x, e) {
+			if idx >= 0 {
+				return false, fmt.Errorf("%w: duplicate records", ErrOwnershipChanged)
+			}
+			idx = i
+		} else if (x.Interface == e.Interface || x.Index == e.Index) && x.Address.Addr() == e.Address.Addr() {
+			return false, fmt.Errorf("%w: session entry differs", ErrOwnershipChanged)
+		}
+	}
+	present, err := ownedAddressPresent(ctx, e)
+	if err != nil {
+		return false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if idx < 0 {
+		if present {
+			return false, ErrNotRecorded
+		}
+		return false, nil
+	}
+	if present {
+		if m.IPPath == "" {
+			return false, ErrNoIP
+		}
+		out, err, unknown := m.runIP(ctx, DelArgv(e)...)
+		if err != nil {
+			if unknown {
+				return true, errors.Join(ErrOutcomeUnknown, wrapIPError(err, out), ctx.Err())
+			}
+			return true, wrapIPError(err, out)
+		}
+		ran = true
+	}
+	s.Entries = append(s.Entries[:idx], s.Entries[idx+1:]...)
+	return ran, m.save(s)
+}
+
+func sameEntry(a, b Entry) bool {
+	return a.Interface == b.Interface && a.Index == b.Index && a.Address == b.Address &&
+		a.Label == b.Label && a.AddedAt.Equal(b.AddedAt) && a.Version == b.Version && slices.Equal(a.Argv, b.Argv)
 }
 
 // Present reports whether the recorded address is configured on the
@@ -247,7 +411,7 @@ func Present(e Entry) bool {
 func wrapIPError(err error, out []byte) error {
 	msg := strings.TrimSpace(string(out))
 	if strings.Contains(msg, "not permitted") {
-		return fmt.Errorf("%w: %s", ErrPrivilege, msg)
+		return fmt.Errorf("%w: %w: %s", ErrPrivilege, err, msg)
 	}
-	return fmt.Errorf("networkcfg: ip: %v: %s", err, msg)
+	return fmt.Errorf("networkcfg: ip: %w: %s", err, msg)
 }

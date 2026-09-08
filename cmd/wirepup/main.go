@@ -74,6 +74,10 @@ type command struct {
 type env struct {
 	stdout io.Writer
 	stderr io.Writer
+	stdin  *os.File
+	input  *promptInput
+	result *operationResult
+	guided bool
 }
 
 var commands = []command{
@@ -94,11 +98,14 @@ var commands = []command{
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	os.Exit(run(ctx, &env{stdout: os.Stdout, stderr: os.Stderr}, os.Args[1:]))
+	os.Exit(run(ctx, &env{stdin: os.Stdin, stdout: os.Stdout, stderr: os.Stderr}, os.Args[1:]))
 }
 
 func run(ctx context.Context, e *env, args []string) int {
 	if len(args) == 0 {
+		if terminalFile(e.stdin) && terminalWriter(e.stdout) {
+			return runGuide(ctx, e)
+		}
 		usage(e.stderr)
 		return exitUsage
 	}

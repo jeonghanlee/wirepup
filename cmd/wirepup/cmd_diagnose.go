@@ -101,6 +101,7 @@ func runDiagnose(ctx context.Context, e *env, args []string) int {
 	}
 	at := reportTime(&g, last)
 	report := diagnose.RunAll(dctx, table, target, diagnose.Options{EPICSOnly: epicsOnly, End: at})
+	e.recordReport(sourceNames(srcs), at, report)
 	doc := output.DiagnosisFrom(sourceNames(srcs), at, report)
 	if g.json {
 		jsonout.Document(e.stdout, doc)

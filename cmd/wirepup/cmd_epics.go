@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"os"
 	"strings"
 	"time"
 
@@ -168,7 +167,7 @@ func runEPICSFind(ctx context.Context, e *env, args []string) int {
 		plan = append(plan, fmt.Sprintf("one PVA search to %s", joinDests(pvaDests)))
 	}
 	fmt.Fprintf(e.stderr, "ACTIVE: will send for %s: %s\n", pv, strings.Join(plan, "; "))
-	if err := confirm(e, &a, os.Stdin); err != nil {
+	if err := confirm(ctx, e, &a, e.inputFile()); err != nil {
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return activeExit(err)
 	}
@@ -196,7 +195,10 @@ func runEPICSFind(ctx context.Context, e *env, args []string) int {
 			report.Inferred = append(report.Inferred, diagnose.Finding{Code: diagnose.CodeCAMultipleServers, Text: fmt.Sprintf("%d CA servers claim %s; a client would connect to whichever answered first", len(res.Responses), pv), Data: map[string]string{"pv": pv, "servers": servers}})
 		}
 	}
-	if len(pvaDests) > 0 {
+	if ctx.Err() != nil && firstErr == nil {
+		firstErr = ctx.Err()
+	}
+	if len(pvaDests) > 0 && ctx.Err() == nil {
 		res, err := active.PVASearch(ctx, pv, pvaDests, activeSearchID, activeInstanceID, wait)
 		if err != nil && firstErr == nil {
 			firstErr = err
@@ -216,6 +218,9 @@ func runEPICSFind(ctx context.Context, e *env, args []string) int {
 			})
 			report.Inferred = append(report.Inferred, diagnose.Finding{Code: diagnose.CodePVAMultipleServers, Text: fmt.Sprintf("%d PVA servers claim %s", len(res.Responses), pv), Data: map[string]string{"pv": pv, "servers": servers}})
 		}
+	}
+	if ctx.Err() != nil && firstErr == nil {
+		firstErr = ctx.Err()
 	}
 	if answers == 0 {
 		report.Inferred = append(report.Inferred, diagnose.Finding{Code: "no-answer", Text: fmt.Sprintf("no server answered for %s within %s from the destinations tried; the PV may still exist on a server not reached by these searches", pv, wait)})
@@ -285,7 +290,7 @@ func findWindow(ctx context.Context, e *env, g *globalFlags) (*device.Table, tim
 	table := device.New(device.Options{LocalMACs: local})
 	wctx, cancel := withTimeout(ctx, g)
 	defer cancel()
-	_, _, err = runSource(wctx, src, func(obs []observation.Observation) {
+	ds, cs, err := runSource(wctx, src, func(obs []observation.Observation) {
 		if len(obs) > 0 {
 			last = obs[0].Ref().Timestamp
 		}
@@ -295,6 +300,7 @@ func findWindow(ctx context.Context, e *env, g *globalFlags) (*device.Table, tim
 		fmt.Fprintf(e.stderr, "wirepup: %v\n", err)
 		return nil, last, exitCodeFor(err)
 	}
+	e.recordStats(ds, cs)
 	return table, last, exitOK
 }
 

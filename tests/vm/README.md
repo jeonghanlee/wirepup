@@ -7,27 +7,29 @@ dedicated Debian 13 guest `lab-debian13-wirepup`. The [catalog](catalog.csv)
 contains 17 checks; [recorded results](../../docs/vm-test-results.md) show their
 status.
 
-**Out of scope:** production networks, physical hardware, Rocky Linux, and
-implementation of guidance. This is a focused suite, not the full
+**Out of scope:** production networks, physical hardware and Rocky Linux.
+This is a focused suite, not the full
 [test environment plan](../../docs/test-environment-plan.md).
 
 ## Run on the prepared VM
 
-Complete [prerequisites](#prerequisites) first. Allow about three minutes plus
+Complete [prerequisites](#prerequisites) first. Allow about ten minutes plus
 an actual guest reboot. The runner requires root and checks the guest hostname.
 
 ### 1. In the guest: run the scenarios
 
-Place `scenarios.py` and `catalog.csv` together in `~/vm`, then run:
+Copy `tests/vm/scenarios.py`, `tests/vm/guided.py`, `tests/vm/catalog.csv`, and
+`tests/guidance.py` with their relative paths intact under `~/wirepup-tests`, then run:
 
 ```bash
-cd ~/vm
+cd ~/wirepup-tests/tests/vm
 sudo python3 -I scenarios.py
 ```
 
 **Check:** save the directory printed as `RESULTS=/var/tmp/...`.
 V16 is `PENDING`: the isolated client deliberately retains `192.0.2.30/24`
-and its WirePup session record for the reboot test. V17 is `NOT_IMPLEMENTED`.
+and its WirePup session record for the reboot test. V17 must pass all guided
+checks recorded individually in `guidance-results.json`.
 
 The runner stops its actors and retains logs, captures and namespaces.
 It refuses existing suite namespaces or a nonempty address record.
@@ -45,7 +47,7 @@ Wait until SSH to that guest works again.
 Paste only the directory after `RESULTS=` from step 1 when prompted:
 
 ```bash
-cd ~/vm
+cd ~/wirepup-tests/tests/vm
 read -r -p 'Main RESULTS path: ' RUN
 sudo python3 -I scenarios.py --reboot-check "$RUN"
 ```
@@ -56,7 +58,7 @@ the test namespaces and `/run/wirepup/session.json` are gone, and an empty
 
 Save the newly printed results directory too. Its `results.json` contains
 the final verdicts; earlier command evidence stays in the first directory.
-For the recorded implementation, success means 16 PASS and V17 NOT_IMPLEMENTED,
+For this runner, success means 17 PASS,
 with no FAIL, SCRIPT_ERROR or PENDING. A shell exit code alone is insufficient.
 
 ## Prerequisites
@@ -72,7 +74,7 @@ Install the following inside the guest as root:
 ```bash
 apt-get update
 apt-get install python3 iproute2 iputils-ping tcpdump tshark dnsmasq-base dhcpcd-base epics-base
-apt-get install libevent-pthreads-2.1-7t64
+apt-get install libevent-pthreads-2.1-7t64 strace util-linux
 ```
 
 Install the built WirePup at `/usr/local/bin/wirepup`.
@@ -132,7 +134,23 @@ Publish only the result summary and reviewed PCAPs needed by regression tests.
 The retained [captures and checksums](pcap/manifest.json) contain isolated test
 traffic; `TestRecordedVMCaptures` reads these files directly.
 
-V08 measures six passive commands on an idle segment; it is not a guarantee
-about all host traffic. V17 checks the current bare-CLI exit 2, not a guide.
+V08 measures six direct passive commands on an idle segment; it is not a guarantee
+about all host traffic. V17 drives the real terminal guide: passive and active
+flows, confirmation refusal, privilege failure, protocol cancellation and scoped
+address cleanup. `guidance-results.json` records each subcase and binary hash;
+`guided-*.pty.log`, PCAPs and strace logs contain the local evidence. The suite
+uses a private mount namespace for an execution-permission failure and strace
+syscall delays around the real iproute2 add and cleanup subprocess. These controls do not affect the
+guest's management network or replace application logic. Other addresses and
+session records must survive every cleanup case. Detailed evidence stays local.
+G24 sends malformed long confirmations through real guided and direct PTYs and
+requires zero source-MAC frames. G25/G26 configure a manual secondary in the
+guide's subnet and require cleanup refusal with addresses, routes, session and
+sysctls unchanged, with `promote_secondaries` off and on. Only the isolated client
+namespace's settings are changed by these tests; their original values are restored.
+The manual test address is removed before selective recovery of the guided entry.
+G27 adds a manual primary while the guide waits for confirmation, then confirms
+the guide's own add. It checks the real secondary flag and requires exit 0 on
+cleanup with the manual primary, routes, other session entries and sysctls intact.
 See the [result matrix and limits](../../docs/vm-test-results.md) before
 treating a passed row as broader coverage.

@@ -4,7 +4,7 @@
 
 This reference describes the implemented WirePup CLI for direct terminal use and scripts. Use the [tested usage scenarios](usage-scenarios.md) to start from a task, or the option sections below to understand a particular flag.
 
-**Out of scope:** interactive guidance that is not implemented yet, protocol internals, and a guarantee that an unobserved device or PV does not exist. See the [execution-mode contract](cli-design.md#execution-modes) and [safety rules](safety.md).
+**Out of scope:** protocol internals and a guarantee that an unobserved device or PV does not exist. The [execution modes](cli-design.md#execution-modes) describe interactive guidance; the command and flag reference below describes its reusable direct invocations. See also the [safety rules](safety.md).
 
 ## Invocation and help
 
@@ -14,7 +14,9 @@ Run `wirepup <command> [options]`. Place options after the command, or after the
 - A leaf command other than `version` accepts `-h` or `--help`, prints its flag help to stderr, and exits 0. For example: `wirepup epics find --help`.
 - `wirepup epics` alone and `wirepup epics --help` exit 2; use leaf-command help.
 - `wirepup version` prints the build version and exits 0. There is no top-level `--version` option; arguments after `version` are currently ignored.
-- Bare `wirepup` currently prints usage to stderr and exits 2, including on a terminal. Guidance is a planned entry mode, not a current feature.
+- Bare `wirepup` enters guidance when stdin and stdout are terminals on Linux or macOS. It prints usage to stderr and exits 2 when either stream is redirected or closed. Explicit commands and help always stay direct.
+
+Interactive answers and confirmation lines are limited to 253 bytes before the newline. Longer input is refused with exit 1; no truncated choice, argument or approval is used. This limit does not apply to arguments supplied on the command line. See [execution modes](cli-design.md#execution-modes) for guided cleanup and recovery rules.
 
 Named flags accept one or two leading dashes: `-json` and `--json` are equivalent. Value flags accept `--timeout 5s` or `--timeout=5s`. Boolean flags take no following value; use `--json=false` to turn one off, not `--json false`. Repeating a flag or its alias uses the last value.
 
