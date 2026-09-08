@@ -1,457 +1,107 @@
 # WirePup
 
-**WirePup** is a lightweight, engineer-focused network discovery and diagnostic tool for laboratory, controls, commissioning, and troubleshooting work.
+## Scope
 
-WirePup is **not** intended to replace Wireshark. Wireshark is a general-purpose packet analyzer. WirePup focuses on quickly answering practical field questions such as:
+WirePup is a local network discovery and diagnosis tool for engineers working
+with Ethernet devices and EPICS Channel Access (CA) or PVAccess (PVA).
+It starts with passive observation and explains the evidence behind a diagnosis.
 
-- What is physically connected to this Ethernet link?
-- What MAC addresses are present even when IP addresses are unknown?
-- Is a newly powered device trying DHCP, IPv4 Link-Local/Auto-IP, static addressing, or IPv6 autoconfiguration?
-- Is a device on the same Layer-2 segment but a different IPv4 subnet?
-- What switch and switch port am I connected to?
-- Is there evidence of VLAN tagging or VLAN-related LLDP information?
-- Can I temporarily add a safe secondary local IP to reach a directly connected device?
-- Are EPICS Channel Access (CA) or PVAccess (PVA) discovery packets present?
-- Why is an IOC or PV not visible from this host?
+**Out of scope:** industrial device writes, switch configuration and aggressive
+scans. A device that sends no visible traffic may remain undiscovered.
+See the [safety rules](docs/safety.md) and [verification limits](docs/vm-test-results.md#verification-limits).
 
-## Start with a task
+## Install
 
-Run `wirepup` in a terminal to choose device discovery, EPICS diagnosis, or capture-file analysis. The guide asks for an interface or file, begins with passive observation, and shows the equivalent direct command before each operation. Live observation defaults to 10 seconds, or 5 seconds for a named PV; you can change the duration.
+Use Linux, Go 1.25 or newer, GNU Make and Bash. See
+[installation prerequisites](docs/installation.md#prerequisites) for Debian 13
+and toolchain setup.
 
-Use a numbered choice, `b` to go back, or `q` to finish. Free-text prompts use `/back` and `/quit` instead, so ordinary names remain usable. Each interactive answer accepts at most 253 bytes; a longer answer stops the interaction without executing it. Active transmission or a temporary address change requires a separate confirmation. Keep the guide open while using its temporary address. On finish or interruption it removes that address only when the ownership and address checks permit it. If deleting a primary address could also remove a manual secondary, the guide refuses cleanup and retains the addresses and recovery record. Inspect the reported condition before manual recovery.
-
-For scripts or repeat work, use `wirepup <command> [options]`. Bare invocation with redirected stdin or stdout prints usage and exits 2 without a prompt. See [execution modes](docs/cli-design.md#execution-modes) for cancellation and recovery, or the [option reference](docs/cli-reference.md) for direct commands.
-
-## Project identity
-
-**Name:** WirePup  
-**Tagline:** A lightweight network discovery and diagnostic tool for engineers.  
-**Copyright:** 2026 Lee, Jeong Han\
-**License:** [Apache License 2.0](LICENSE)\
-**Initial platform:** Linux  
-**Initial implementation language:** Go (1.25 or newer)  
-**Development model:** local-first, documentation-first, multi-agent assisted
-
-## Building
-
-WirePup builds with the Go toolchain only; no cgo and no C libraries.
-
-- **Go 1.25 or newer** is required. The `golang.org/x` modules track the two
-  most recent Go releases, so a security update to a dependency raises this
-  floor; `go.mod` records the current minimum.
-- On Debian 13 (trixie) the base archive ships Go 1.24. Enable
-  `trixie-backports` first (it is off by default), then `apt install -t
-  trixie-backports golang-go` (currently Go 1.26); or install from the
-  official `go.dev` tarball, which needs no backports.
-- `make` or `make help` shows the workflows; `make build` produces the static binary in
-  `bin/`, and `make check` runs gofmt, vet, and the tests.
-
-The entry-point `Makefile` loads configuration and rules from `configure/`.
-`RELEASE` defines project identity and the embedded version; `CONFIG_SITE`
-selects tools, the output path, and test scope; `CONFIG_VARS` derives build
-settings. `RULES_BUILD`, `RULES_INSTALL`, `RULES_CHECK`, `RULES_HELP`, and `RULES_VARS` provide
-the targets, using common definitions from `RULES_FUNC`.
-
-Use `make -C <repository> help` for common workflows and `help.detail` for the
-full target reference. `vars` prints effective settings (`FILTER=GO` selects
-a prefix); `PRINT.GO` also reports a variable's origin. `VERBOSE=1` displays
-recipe commands, and `DEBUG_SHELL=1` enables shell tracing.
-
-Local settings belong in `configure/CONFIG_SITE.local` or
-`configure/RELEASE.local`, both ignored by Git. Matching files in the parent
-directory load first; command-line assignments take precedence. Supported
-settings include `GO`, `GOFMT`, `BIN`, `PKG`, `TEST_FLAGS`, and `VERSION`.
-The selected Go toolchain supplies gofmt and enforces the minimum in `go.mod`.
-`test` and `race` accept `TEST_FLAGS=-count=1` to bypass the Go test cache.
-Builds use `CGO_ENABLED=0`; only `race` enables cgo and requires a C compiler.
-`clean` removes only the file selected by `BIN`, leaving its directory intact.
-
-Local installation defaults to `$HOME/.local/bin/wirepup`, without sudo,
-with Bash completion at `$HOME/.local/share/bash-completion/completions/wirepup`.
-Use `install.dry-run` to preview, `install` (an alias of `install.apply`) to
-build and install, and `install.check` to verify the executable, version,
-active PATH, and completion registration. Set `INSTALL_LOCATION` to change both files' prefix;
-pass the same value to all three operations. `INSTALL` selects the GNU
-coreutils install command for writable destinations. Installation refuses a symlink or
-non-regular file at either destination. Build output must not refer to either installed
-file. Completion syntax, registration, and the registered function's definition are
-checked before installation and again on the staged copy, as the invoking user in
-a fresh Bash process.
-
-For each destination file that already exists, installation asks
-`Replace this file? [y/N]` before changing it. Enter, `n`, or EOF cancels the
-installation with a non-zero exit status. Both answers are collected before
-either file is copied, so cancelling either question preserves both files.
-Without an interactive terminal, replacement is refused. For automation,
-explicitly approve replacement with `make install INSTALL_FORCE=1` (and the
-same `INSTALL_LOCATION` as before). A new destination needs no confirmation.
-
-If `$HOME/.local/bin` is absent from PATH or another wirepup takes precedence,
-`install.check` fails and prints the PATH activation command.
-
-For a system installation at `/usr/local/bin/wirepup`, run these commands
-as your normal user from the repository directory:
+From the repository directory, as your normal user:
 
 ```bash
+make build
 make install.dry-run INSTALL_LOCATION=/usr/local
 make install INSTALL_LOCATION=/usr/local
+export PATH="/usr/local/bin:$PATH"
 make install.check INSTALL_LOCATION=/usr/local
 sudo wirepup version
 ```
 
-Installation selects sudo when the destination directory is not writable.
-Only the file copy uses sudo, which may ask for your password;
-the build and version checks run as your normal user. Do not run `sudo make`.
-The protected copy installs a root-owned executable with mode `0755` and
-completion with mode `0644`. It requires
-root-owned parent directories without group or other write permission or symlinks.
-The invoking user must be able to traverse those directories to verify the result.
-It uses system tools; custom `INSTALL` commands apply only to writable destinations.
-Each copy's SHA-256 digest must match its snapshot verified before sudo;
-an incomplete or changed copy does not replace the existing installation.
-The verification snapshot is created beside the resolved build output, so a
-`noexec` setting on `TMPDIR` does not prevent installation. That build directory
-must be writable by the invoking user. Before replacement, the protected copy
-checks execution permission on the staged executable and refuses a `noexec` destination
-while preserving the existing file.
-Files are installed one at a time: a later copy failure can leave the executable
-updated and completion unchanged. Correct the reported failure and rerun installation;
-`install.check` checks that both artifacts are present and usable.
+This installs the executable at `/usr/local/bin/wirepup` and Bash completion
+under `/usr/local/share/bash-completion/`. Existing files require confirmation;
+only protected file copies use sudo. Do not run `sudo make`.
+The [installation guide](docs/installation.md) covers checkout, user-only installation,
+updates, PATH checks and completion activation.
 
-`install.check` checks your current PATH; `sudo wirepup version` separately checks
-sudo's command lookup. An older `$HOME/.local/bin/wirepup` can still take precedence
-in your shell. To select the system installation, use `export PATH=/usr/local/bin:$PATH`
-and run `make install.check INSTALL_LOCATION=/usr/local` again. If sudo does not
-search `/usr/local/bin`, use `sudo /usr/local/bin/wirepup version`.
+## First use
+
+For a guided live session, run in a terminal:
+
+```bash
+sudo wirepup
+```
+
+Choose **Find devices** or **Diagnose EPICS connectivity**. The guide asks for
+the interface and observation time, then shows the direct command it will run.
+It starts passively. A proposed transmission or temporary address change needs
+a separate confirmation.
+
+For offline work, run `wirepup` without sudo and choose
+**Analyze a capture file**. To try a direct command without network access,
+run from this repository:
+
+```bash
+wirepup read testdata/pcap/ca-search-response.pcap --protocol ca
+```
+
+Menus accept a number, `b` for back and `q` for quit. Free-text prompts use
+`/back` and `/quit` so names such as `b` remain usable.
+Keep a guide-created temporary connection open while using it. Read
+[interruption and cleanup](docs/usage-scenarios.md#interruption-and-cleanup)
+before relying on automatic removal.
+
+## Choose a task
+
+| Task | Command | Walkthrough |
+| --- | --- | --- |
+| Inspect local interfaces | `interfaces` | [Start here](docs/usage-scenarios.md#start-here) |
+| Find an unknown device | `discover` | [Device discovery](docs/usage-scenarios.md#find-an-unknown-device) |
+| Watch live protocol events | `observe` | [Event stream](docs/cli-design.md#wirepup-observe) |
+| Save or analyze a capture | `capture`, `read` | [Capture and replay](docs/usage-scenarios.md#capture-and-replay) |
+| Explain subnet or DHCP symptoms | `diagnose` | [Temporary connection](docs/usage-scenarios.md#temporary-connection), [DHCP and Auto-IP](docs/usage-scenarios.md#dhcp-and-auto-ip) |
+| Inspect CA/PVA discovery | `epics observe`, `epics diagnose`, `epics find` | [Passive EPICS analysis](docs/usage-scenarios.md#passive-epics-analysis) |
+| Send an explicit PV search | `epics find --active` | [Active EPICS search](docs/usage-scenarios.md#active-epics-search) |
+| Send a bounded ARP search | `probe` | [Bounded ARP search](docs/usage-scenarios.md#bounded-arp-search) |
+| Add or remove a temporary address | `connect`, `disconnect` | [Temporary connection](docs/usage-scenarios.md#temporary-connection) |
+| Watch interactive views | `tui` | [Use the TUI](docs/usage-scenarios.md#use-the-tui) |
+| Use scripts, help or version output | `--help`, `version`, `--json` | [Scripts and help](docs/usage-scenarios.md#scripts-and-help) |
+
+For repeat work, use explicit commands and the
+[option reference](docs/cli-reference.md). Bare invocation with redirected
+stdin or stdout prints usage and exits 2 instead of asking questions.
+
+`probe`, `connect` and `epics find --active` ask before acting unless
+`--yes` is supplied. Direct `disconnect` requests deletion of recorded addresses
+without a prompt; inspect the [recovery conditions](docs/usage-scenarios.md#interruption-and-cleanup) first.
+Other command modes in the table are passive.
 
 ## Bash completion
 
-Once completion is activated, press `Tab` to complete commands, options, protocol names,
-local interfaces, and capture paths. For example, `wirepup cap<Tab>` becomes
-`wirepup capture`. With Bash's default settings, `Tab` extends the common prefix.
-If several candidates remain and `Tab` makes no further change, press it once
-more to list them:
-`wirepup capture -i <Tab><Tab>` lists the matching local interfaces.
-`wirepup observe --protocol arp,ll<Tab>` completes `arp,lldp`.
-Paths with spaces can be quoted or escaped normally.
-For a capture filename beginning with a dash, start with `./` before pressing Tab,
-for example `wirepup read ./-in<Tab>`. See the
-[positional argument rules](docs/cli-reference.md#invocation-and-help).
-
-Activate it in an existing Bash shell using the path printed by `install.check`:
+After system installation, activate completion in your current Bash shell:
 
 ```bash
-source "$HOME/.local/share/bash-completion/completions/wirepup"
+source /usr/local/share/bash-completion/completions/wirepup
 ```
 
-For `INSTALL_LOCATION=/usr/local`, source
-`/usr/local/share/bash-completion/completions/wirepup` instead. For a custom prefix,
-source `<prefix>/share/bash-completion/completions/wirepup`. Explicit sourcing works
-with Bash 4 or newer without the optional `bash-completion` package. For automatic
-loading, install that package and start a new Bash shell with its integration enabled.
-Standard user and system data directories are discovered; for custom prefixes or
-an overridden `XDG_DATA_HOME`, the explicit source command remains reliable.
-Re-source after updating a completion already loaded in the current shell.
+Type `wirepup cap` and press Tab to complete `capture`.
+If Tab makes no further change, press it again to list the remaining choices.
+See [activation for other prefixes](docs/installation.md#bash-completion)
+and [completion examples](docs/usage-scenarios.md#complete-commands-in-bash).
 
-Completion reads the installed CLI's help, local interface names, and file names.
-It does not capture traffic, look up PVs, transmit packets, or change network settings.
-No shell startup file is edited during installation.
+## Documentation
 
-## Core goals
+The [documentation index](docs/README.md) connects installation, scenarios,
+options, test procedures and engineering references.
+Start [contributing](CONTRIBUTING.md) for build settings and development checks.
 
-WirePup should:
-
-1. Work locally on a laptop without requiring a central service.
-2. Discover devices before their IP configuration is known.
-3. Treat MAC identity and Layer-2 observations as first-class data.
-4. Correlate LLDP, ARP, DHCP, IPv6, CA, and PVA observations into device records.
-5. Separate passive observation from active probing.
-6. Provide actionable diagnostics, not only raw packet dumps.
-7. Read/write standard packet captures for Wireshark interoperability.
-8. Treat EPICS CA and PVA as first-class controls protocols.
-9. Remain small enough to deploy as a practical engineering tool.
-10. Prefer safe, explainable behavior suitable for laboratory and controls networks.
-
-## Non-goals
-
-Initial versions will not attempt to:
-
-- replace Wireshark's full protocol coverage;
-- implement every application protocol;
-- perform aggressive vulnerability scanning;
-- exploit devices;
-- automatically reconfigure production switches;
-- silently modify host network configuration;
-- perform write operations against PLC/industrial protocols;
-- guarantee discovery of a completely silent device that emits no traffic and is not visible through a managed switch.
-
-## Core architecture
-
-```text
-Live Interface / PCAP
-        |
-        v
-+-------------------+
-| Capture Backend   |
-+-------------------+
-        |
-        v
-+-------------------+
-| Frame Decoding    |
-+-------------------+
-        |
-        v
-+-------------------+
-| Protocol Decoders |
-| LLDP ARP DHCP NDP |
-| CA PVA ...        |
-+-------------------+
-        |
-        v
-+-------------------+
-| Typed Observations|
-+-------------------+
-        |
-        v
-+-------------------+
-| Device Correlator |
-+-------------------+
-        |
-        +--------------------+
-        |                    |
-        v                    v
-+-------------------+  +------------------+
-| Diagnosis Engine  |  | Event Stream     |
-+-------------------+  +------------------+
-        |
-        v
-+-------------------+
-| CLI / JSON / TUI  |
-+-------------------+
-```
-
-The central rule is:
-
-> **Protocol decoders decode packets and emit observations. They do not own global device state.**
-
-## Proposed command families
-
-```text
-wirepup interfaces    # local interfaces
-wirepup observe       # passive event stream
-wirepup discover      # passive device-oriented discovery
-wirepup capture       # capture to PCAP/PCAPNG
-wirepup read          # offline packet analysis
-wirepup diagnose      # rule-based diagnosis
-wirepup epics         # CA/PVA focused tools
-wirepup tui           # interactive terminal view
-
-wirepup probe         # explicitly active discovery
-wirepup connect       # explicitly change local secondary IP
-wirepup disconnect    # remove WirePup-created temporary configuration
-```
-
-Passive commands must never transmit packets or change the host configuration.
-
-## Which command do I need?
-
-Start with the [tested usage scenarios](docs/usage-scenarios.md), or look up
-defaults and applicability in the [option reference](docs/cli-reference.md).
-The [VM test results](docs/vm-test-results.md) distinguish executed scenarios
-from features and environments that still need implementation or validation.
-
-| Situation | Command | Transmits? |
-| --- | --- | --- |
-| List the local interfaces | `interfaces` | no |
-| Find a device whose IP is unknown | `discover` | no |
-| Watch the live event stream | `observe` | no |
-| Watch everything in one interactive screen | `tui` | no |
-| Save traffic for later or for Wireshark | `capture` | no |
-| Replay and analyze a capture file offline | `read` | no |
-| Explain why a target is unreachable | `diagnose` | no |
-| Track a CA or PVA PV that will not connect | `epics find` | no (`--active` sends one CA and one PVA search per destination) |
-| Sweep a subnet with ARP to find live hosts | `probe` | yes (ARP) |
-| Add a temporary address to reach another subnet | `connect` | yes (ARP probe + host change) |
-| Remove a temporary address WirePup added | `disconnect` | yes (host change) |
-
-The bottom three change the host or transmit: `probe` and `connect` ask
-before acting unless `--yes`; `disconnect` requests deletion of the addresses
-WirePup recorded, without a confirmation prompt. `epics find --active` also transmits after confirmation
-unless `--yes`. The remaining modes are passive.
-
-## Example: unknown device
-
-```text
-$ sudo wirepup discover -i enp3s0
-
-Listening on enp3s0...
-
-NEW DEVICE
-MAC        00:80:F4:12:34:56
-IPv4       unknown
-Seen via   Ethernet
-
-UPDATE
-MAC        00:80:F4:12:34:56
-IPv4       169.254.22.31
-Seen via   ARP Probe
-
-UPDATE
-MAC        00:80:F4:12:34:56
-IPv4       169.254.22.31
-Seen via   ARP Announcement
-Method     IPv4 Link-Local / Auto-IP
-```
-
-## Example: same Layer 2, different subnet
-
-```text
-$ wirepup diagnose 192.168.1.100
-
-Observed target
-  MAC       00:80:F4:12:34:56
-  IPv4      192.168.1.100
-
-Local host
-  enp3s0    10.20.30.51/24
-
-Diagnosis
-  ✓ Layer-2 evidence observed on enp3s0
-  ✗ Target IPv4 is outside all configured local IPv4 subnets
-
-Recommendation
-  Consider a temporary secondary address in 192.168.1.0/24.
-
-No host network configuration will be changed without explicit user action.
-```
-
-## Example: EPICS CA
-
-```text
-$ wirepup epics observe -i enp3s0
-
-CA SEARCH
-Client      10.20.4.88
-Destination 10.20.4.255:5064
-PV          MPS:SYS:STATE
-
-CA SEARCH RESPONSE
-Server      10.20.4.31
-TCP port    5064
-PV          MPS:SYS:STATE
-```
-
-The default CA server/search port is 5064 and the default CA repeater/beacon port is 5065, unless overridden by EPICS configuration.
-
-## Example: EPICS PVA
-
-```text
-PVA SEARCH
-Client      10.20.4.88
-Destination 10.20.4.255:5076
-PV          MPS:SYS:STATE
-
-PVA SEARCH RESPONSE
-Server      10.20.4.31
-TCP port    5075
-PV          MPS:SYS:STATE
-```
-
-The default PVA UDP search/broadcast port is 5076 and the default PVA TCP server port is 5075, unless overridden.
-
-## Example: temporary address to reach another subnet (active)
-
-```text
-$ sudo wirepup connect 192.168.1.100 -i enp3s0
-
-Observing enp3s0 for 5s (passive: nothing is transmitted)...
-
-Diagnosis
-  Target 192.168.1.100 is outside every local IPv4 subnet on enp3s0.
-
-Recommended
-  add 192.168.1.254/24 to enp3s0 after an ARP probe:
-  ip address add 192.168.1.254/24 dev enp3s0
-
-ACTIVE: will send 3 ARP probes for 192.168.1.254 on enp3s0, then run the command above.
-Proceed? [y/N]
-```
-
-`connect` is one of the three active commands: it observes passively first,
-prints the exact `ip` command it intends to run, ARP-probes the candidate,
-and refuses (exit 6) if anything answers. Nothing changes without the
-confirmation or `--yes`. `wirepup disconnect` later requests deletion of recorded
-addresses. Inspect shared-subnet dependencies first: Linux can also remove manual
-secondaries when deleting a primary. See the [recovery rules](docs/cli-design.md#wirepup-disconnect).
-
-## Example: interactive view (TUI)
-
-```text
-$ sudo wirepup tui -i enp3s0
-
-WirePup enp3s0   [1 Devices] 2 Events  3 EPICS  4 Interfaces  5 Diagnostics
---------------------------------------------------------------------------
-MAC                IPv4             VENDOR (hint)      PROTOCOLS      LAST
-00:80:f4:12:34:56  169.254.22.31    Rockwell (hint)    arp            12:31:07
-00:1c:73:00:00:02  10.20.4.31       Arista (hint)      epics.ca       12:31:09
---------------------------------------------------------------------------
-q quit  Tab/1-5 view  j/k space scroll  r top
-```
-
-Passive. Five views over the same pipeline as the text commands: `Tab` or
-`1`-`5` switch views, `j`/`k` scroll, space by ten, `r` returns to the top,
-`q` leaves. `wirepup tui --pcap issue.pcap` replays a capture the same way.
-
-## Repository layout
-
-```text
-wirepup/
-├── README.md
-├── LICENSE
-├── AGENTS.md
-├── CLAUDE.md
-├── CONTRIBUTING.md
-├── BOOTSTRAP.md
-├── docs/
-│   ├── requirements.md
-│   ├── architecture.md
-│   ├── protocol-scope.md
-│   ├── cli-design.md
-│   ├── safety.md
-│   ├── testing.md
-│   ├── roadmap.md
-│   ├── ai-workflow.md
-│   ├── references.md
-│   └── adr/
-├── prompts/
-│   ├── claude-architecture-review.md
-│   ├── codex-m0-bootstrap.md
-│   ├── cross-review.md
-│   └── full-repository-review.md
-├── Makefile
-├── configure/               # build configuration and target rules
-├── go.mod
-├── cmd/wirepup/          # CLI entry point
-├── internal/             # capture, decode, protocol parsers, device, diagnose, output, active, networkcfg, tui
-└── testdata/
-    ├── fixtures/
-    ├── gen/
-    ├── golden/
-    └── pcap/
-```
-
-## Development order
-
-1. Review and accept/revise ADRs.
-2. Have Claude review the architecture before code is written.
-3. Cross-review Claude's findings.
-4. Implement M0: Ethernet + ARP + device observation.
-5. Validate with offline captures and one controlled real device.
-6. Add LLDP/DHCP, then IPv6/VLAN.
-7. Stabilize device correlation.
-8. Add PCAP interoperability and diagnosis.
-9. Add CA.
-10. Add PVA.
-11. Add temporary-IP workflow only after privilege/safety review.
-
-See `BOOTSTRAP.md` for the exact starting workflow.
+Copyright 2026 Lee, Jeong Han. Licensed under the [Apache License 2.0](LICENSE).

@@ -13,7 +13,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: M21 documentation and T1-T3 verification are accepted; land the five reviewed documentation files under Git delegation, then record completion. M19 and M20 are Complete; M22 follows M21 closure.
+Next session entry point: `docs/milestone-182961f.md`: M21 is Complete. M22 documentation and T1-T2 are verified in the working tree; review the 13 changed paths, then commit and push under the separate Git authorizations. Record M22 completion after verifying its Git landing.
 
 ## Milestone
 
@@ -41,10 +41,10 @@ Next session entry point: `docs/milestone-182961f.md`: M21 documentation and T1-
 | cli | M18 | Direct execution and option reference | Milestone | Complete | No | D6 | Existing script behavior preserved; every option documented against the implementation; [detail](#m18---direct-execution-and-option-reference) |
 | cli | M19 | Guided execution from observed results | Milestone | Complete | No | D6, M18 | Bare terminal invocation guides the user through the existing operations and explains next actions; [detail](#m19---guided-execution-from-observed-results) |
 | shell | M20 | Bash completion and installation | Milestone | Complete | No | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
-| docs | M21 | Executable scenarios and bidirectional option links | Milestone | In progress | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
-| docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Not started | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
+| docs | M21 | Executable scenarios and bidirectional option links | Milestone | Complete | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
+| docs | M22 | Usage-first documentation navigation and cleanup | Milestone | In progress | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
 
-Status totals: 20 Complete, 1 In progress, 1 Not started. Ready: none; M21 awaits Git landing and M22 depends on its closure. No Backlog rows.
+Status totals: 21 Complete, 1 In progress. Ready: none; M22 verification is recorded and Git landing remains. No Backlog rows.
 
 ### Decisions
 
@@ -1286,7 +1286,7 @@ Superseded Plan Artifacts: none
 Origin: 182961f / M21
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1342,19 +1342,19 @@ Plan review: before this change, `docs/usage-scenarios.md` excluded guidance and
 | T2 | 2026-09-07 | Markdown, built CLI and real Bash Readline | PASS | All 21 option entries have links in both directions; 140 relative links in the two guides resolve. Leaf help coverage and fresh `make check TEST_FLAGS=-count=1` pass. Three completion tests, all six usage-table examples and eight guidance test groups pass. |
 | T3 | 2026-09-07 19:38-19:39 PDT | Dedicated Debian 13 VM; real namespaces, kernel/IOC peers and PTYs | PASS | 13 focused checks including isolation, discovery, ARP capture/replay, PCAPNG snap length/no-promisc, confirmed direct/guided ARP and CA/PVA search, active missing-PV exit 5, temporary connections, TUI keys and interruption. Complete client addresses/routes/other record were preserved; actors/namespaces were removed and original session/management state restored. DHCP acquisition, duplicate IOC setup and reboot retain earlier evidence. |
 
-The current executable was built from `aeda686bffb1375b3b62d3d529f4ac5d72db3dc3`; its full hash and verification limits are in [VM Scenario Results](vm-test-results.md#usage-walkthrough-verification). Local command output, PTY transcripts, VM orchestration and raw results remain under `work/` or in the dedicated guest. The public [walkthrough procedure](testing.md#13-usage-walkthrough-verification) describes repetition without depending on a private results path.
+The executable verified for M21 was built from `aeda686bffb1375b3b62d3d529f4ac5d72db3dc3`; its full hash and verification limits are in [VM Scenario Results](vm-test-results.md#usage-walkthrough-verification). Local command output, PTY transcripts, VM orchestration and raw results remain under `work/` or in the dedicated guest. The public [walkthrough procedure](testing.md#13-usage-walkthrough-verification) describes repetition without depending on a private results path.
 
 ##### Closure Evidence
 
 - 2026-09-07: independent second-person and third-person review accepted all five documentation files and their recorded evidence. The capture-view navigation and text/JSON finding explanations were corrected; no in-scope finding remains.
-- Implementation and T1-T3 verification are recorded. The documentation changes have not been committed or pushed; M21 remains In progress until Git landing is verified.
+- 2026-09-08: the five reviewed documentation files landed in commit `f886426a1fee9bad436d6177f1c87bb3607d7d5d`. After `git fetch origin`, observed at `2026-09-08T00:37:03-07:00`, both `master` and `origin/master` resolved to that commit; comparing the five committed paths against the fetched upstream returned no difference. Implementation, T1-T3 and reader review are accepted. M21 is Complete.
 
 #### M22 - Usage-first documentation navigation and cleanup
 
 Origin: 182961f / M22
 Identity History: none
 GitHub Issue: none
-Status: Not started
+Status: In progress
 
 ##### Summary
 
@@ -1381,14 +1381,41 @@ Out of scope: deletion based only on age, Git history rewriting, or resetting th
 
 ##### Implementation Plan
 
-Plan Status: draft
-Plan Acceptance: none
-Implementation Authorization: none
+Plan Status: accepted
+Plan Acceptance: 2026-09-08 - organize README and documentation around installation, first use and verified scenarios; replace initial implementation instructions with maintained references and committed history.
+Implementation Authorization: 2026-09-08 - proceed with M21 completion recording and M22 documentation navigation and cleanup.
 Superseded Plan Artifacts: none
 
-1. Compare existing documents with M21 and record each cleanup candidate's disposition in this milestone detail.
-2. Rewrite README and the docs index, relocate unique maintained content, and retire superseded initial-development material.
-3. Check inbound links and complete reader journeys from installation through use and recovery.
+1. Compare the bundled project plan, bootstrap guide, original roadmap, initial agent workflow and prompts against maintained requirements, ADRs, tests and M21. Record replacements and the pre-cleanup commit in this detail.
+2. Shorten `README.md` to installation, first guided/offline use, direct commands and task links. Create `docs/README.md` as the user/engineering index and `docs/installation.md` for the existing installation, replacement, PATH and completion instructions. Preserve the installation safeguards and recovery links.
+3. Move maintained build and contribution instructions into `CONTRIBUTING.md`; update `CLAUDE.md` and usage links. Remove only the six superseded initial-development files listed below. Keep reusable review prompts, the test-environment design, all safety/schema/engineering references, ADRs and CLOSED_DOORS.
+4. Verify local links and historical replacement coverage. Follow the real build/install/check path into a temporary user-owned prefix, then use that installed CLI for help, offline direct/guided operation and Bash completion. Review the final text from operator and maintainer perspectives; record actual results and limits without claiming a new full VM or hardware run.
+
+Plan review at `f886426`: the 1,994-line bundle reproduced ten source documents. Its requirements and protocol scope exactly matched the standalone files; the maintained architecture, CLI, safety and testing documents added the implemented behavior. README included illustrative pre-implementation output and an M0 starting sequence. The initial prompts and `CLAUDE.md` directed a new checkout to first-implementation work. M21 supplied the executable replacement scenarios; its Git landing is verified above.
+
+##### Documentation inventory
+
+Disposition date: 2026-09-08. Historical links below name the immutable pre-cleanup commit `f886426a1fee9bad436d6177f1c87bb3607d7d5d`; they preserve the removed files without a second current copy. No Git history is rewritten. Future candidates in the original roadmap remain historical proposals, not current implementation claims or newly assigned work.
+
+| Document or group | Disposition | Current purpose or replacement |
+| --- | --- | --- |
+| [README](../README.md) | Rewrite | Installation, first live/offline use, direct task routes and completion; replace illustrative early output with M21 walkthrough links. |
+| [Documentation index](README.md) | Add | User routes first, test procedures and engineering references separately. |
+| [Installation](installation.md) | Extract | Preserve prerequisites, user/system/custom prefixes, replacement consent, PATH, completion activation and protected-copy safeguards from README. |
+| [Contributing](../CONTRIBUTING.md), [Claude entry point](../CLAUDE.md) | Update | Move build configuration, reference selection, protocol increments and collaboration guidance into current contributor instructions. Point to the canonical work entry. |
+| [Usage scenarios](usage-scenarios.md), [CLI reference](cli-reference.md) | Maintain | M21 owns executable tasks and option links. Redirect installation links to the extracted guide. |
+| [Requirements](requirements.md), [architecture](architecture.md), [protocol scope](protocol-scope.md), [CLI design](cli-design.md), [safety](safety.md), [output schema](output-schema.md) | Retain | Current requirements, design and public contracts; no semantic change in this cleanup. |
+| [ADRs](adr/), [technical references](references.md) | Retain | Design decisions and protocol sources remain available to maintainers. |
+| [Testing](testing.md), [VM results](vm-test-results.md), [VM procedure](../tests/vm/README.md) | Retain | Existing repeatable methods and dated results; no result is promoted to broader coverage. |
+| [Test environment plan](test-environment-plan.md) | Retain as planned coverage | Unique reporting, OS-matrix and release-gate design beyond the implemented VM suite; the index labels its planned status. |
+| This milestone document, [Closed Doors](CLOSED_DOORS.md), [AGENTS](../AGENTS.md), [license](../LICENSE) | Retain | Work/evidence authority, no-change decisions, contributor constraints and license remain current. |
+| [Cross-review](../prompts/cross-review.md), [full-repository review](../prompts/full-repository-review.md) | Retain | Reusable checks, reachable from Contributing; not first-implementation instructions. |
+| [Historical project bundle](https://github.com/jeonghanlee/wirepup/blob/f886426a1fee9bad436d6177f1c87bb3607d7d5d/WIREPUP_PROJECT_PLAN.md) | Remove duplicate | Ten embedded source documents; maintained requirements/protocol scope are identical, other current source documents carry subsequent decisions and behavior. Replaced by the documentation index and the rows below. |
+| [Historical bootstrap](https://github.com/jeonghanlee/wirepup/blob/f886426a1fee9bad436d6177f1c87bb3607d7d5d/BOOTSTRAP.md) | Retire | Repository creation and first M0 are superseded by Installation and the current milestone. Passive/evidence checks and capture privacy remain in Testing, Safety and AGENTS. |
+| [Historical roadmap](https://github.com/jeonghanlee/wirepup/blob/f886426a1fee9bad436d6177f1c87bb3607d7d5d/docs/roadmap.md) | Retire | Original M0-M10 sequencing is historical; current work is tracked here. Feature requirements, protocol scope and executable coverage remain in their maintained documents. |
+| [Historical agent workflow](https://github.com/jeonghanlee/wirepup/blob/f886426a1fee9bad436d6177f1c87bb3607d7d5d/docs/ai-workflow.md) | Retire | Initial role/stage sequence is historical. Reference rule, protocol increments, handoff information and ADR-change discipline move to Contributing; reusable review checklists remain. |
+| [Historical architecture prompt](https://github.com/jeonghanlee/wirepup/blob/f886426a1fee9bad436d6177f1c87bb3607d7d5d/prompts/claude-architecture-review.md) | Retire | Initial M0 design proposal is superseded by the accepted ADRs and current plan. Architecture, safety and validation checks remain in the reusable review prompts. |
+| [Historical M0 prompt](https://github.com/jeonghanlee/wirepup/blob/f886426a1fee9bad436d6177f1c87bb3607d7d5d/prompts/codex-m0-bootstrap.md) | Retire | Bootstrap-only scope is superseded by implemented commands and current milestones. Decoder isolation, passive behavior, testability and dependency licensing remain in AGENTS and Contributing. |
 
 ##### Test Plan
 
@@ -1401,12 +1428,14 @@ Superseded Plan Artifacts: none
 
 | Label | Observed At | Environment | Result | Evidence |
 | --- | --- | --- | --- | --- |
-| T1 | Not run | Markdown and Git history | Pending | none |
-| T2 | Not run | Debian 13 | Pending | none |
+| T1 | 2026-09-08 | Repository Markdown and Git history at `f886426` | PASS | Parsed 36 Markdown files: all 297 relative links resolve. Each of the six retired files has an immutable historical link and a maintained replacement in the inventory. Compared all ten embedded source documents; 29 retained engineering, safety, schema, test, license and instruction files are byte-identical to the baseline. Changed Markdown is ASCII, uses fenced examples and passes `git diff --check`. Rendered README and the documentation index for layout inspection. |
+| T2 | 2026-09-08 | Debian 13.6, Go 1.26.7, Bash, actual installed CLI in a temporary user prefix | PASS | Real Make build/install/check and `tests/install.bash` passed, including a prefix with spaces, PATH shadowing and symlink refusal. Replacement consent passed all 8 `tests/install-confirmation.py` cases. The installed CLI passed all 8 `tests/guidance.py` and 3 `tests/completion.py` cases; README's shipped CA capture replay, help, version and interfaces ran successfully. `make check TEST_FLAGS=-count=1` passed without changes to shipped fixtures or goldens. |
+
+The M22 walkthrough executable reports `f886426-dirty` (documentation-only changes), with SHA-256 `af61d9a9ef11e028bd65e786d9be6a28f902b9425cc4b61a7deea275d9ea17a8`. Raw logs, rendered previews and the temporary installation remain local under `work/`. No new APT installation, protected system-prefix installation, VM network run or physical hardware validation was performed; the retained testing procedures and dated results define those separate checks.
 
 ##### Closure Evidence
 
-- none
+- 2026-09-08: README, the documentation index and installation guide provide current user entry points. CONTRIBUTING and the Claude entry point preserve maintained development instructions. Six superseded files were removed only after comparison and historical-reference checks; the inventory records every replacement. M22 implementation and T1-T2 are recorded in the working tree. Self-review covers reader routes (C1), retained requirements and history (C2), and command/evidence consistency (C3). Git landing and its completion record remain pending; M22 stays In progress.
 
 ## Backlog
 

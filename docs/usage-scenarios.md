@@ -11,7 +11,7 @@ and proving that an unobserved device or PV does not exist.
 
 ## Start here
 
-Use the [installed command](../README.md#building), or run these commands from
+Use the [installed command](installation.md), or run these commands from
 the repository root to try the shipped captures without root or a VM:
 
 ```bash
@@ -438,7 +438,7 @@ Options: [help](cli-reference.md#-h---help),
 ## Complete commands in Bash
 
 Activate completion using the path for your installation; see
-[installation and activation](../README.md#bash-completion).
+[installation and activation](installation.md#bash-completion).
 From the source checkout with `bin` on PATH:
 
 ```bash
