@@ -13,7 +13,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: M23 is In progress and T1-T2 pass; record the filed issue number, commit under separate Git authority, then run T3-T4 on that commit.
+Next session entry point: `docs/milestone-182961f.md`: all assigned work is Complete; no Backlog work is recorded. Agree the next scope with the owner before adding work to this document.
 
 ## Milestone
 
@@ -43,9 +43,9 @@ Next session entry point: `docs/milestone-182961f.md`: M23 is In progress and T1
 | shell | M20 | Bash completion and installation | Milestone | Complete | No | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
 | docs | M21 | Executable scenarios and bidirectional option links | Milestone | Complete | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
 | docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Complete | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
-| shell | M23 | Tracked scripts with a shebang keep the executable bit | Milestone | In progress | No | D7 | Fresh clones carry mode `100755` for every tracked shebang file and `make check` enforces it; [detail](#m23---tracked-scripts-with-a-shebang-keep-the-executable-bit) |
+| shell | M23 | Tracked scripts with a shebang keep the executable bit | Milestone | Complete | No | D7 | Fresh clones carry mode `100755` for every tracked shebang file and `make check` enforces it; [detail](#m23---tracked-scripts-with-a-shebang-keep-the-executable-bit) |
 
-Status totals: 22 Complete, 1 In progress. Ready: none. No Backlog rows.
+Status totals: 23 Complete. Ready: none. No unfinished Milestone or Backlog rows.
 
 ### Decisions
 
@@ -1445,7 +1445,7 @@ The M22 walkthrough executable reports `f886426-dirty` (documentation-only chang
 Origin: 182961f / M23
 Identity History: none
 GitHub Issue: 2, https://github.com/jeonghanlee/wirepup/issues/2
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1498,24 +1498,24 @@ Superseded Plan Artifacts: none
 | --- | --- | --- | --- | --- |
 | T1 | 2026-09-11T05:47Z | Debian 13.6 host, Go 1.26.7, full copy of the working tree with the seven changed paths staged | Pass | `make check TEST_FLAGS=-count=1` exit 0; the four shebang files were `100755` in the copy's index with unchanged blobs, and `mode-check`, gofmt, vet and every package test passed |
 | T2 | 2026-09-11T05:48Z | Debian 13.6 host, the same copy and a copy of its tree without `.git` | Pass | After `git update-index --chmod=-x tools/install-wirepup.bash`, `make mode-check` listed that path and its recipe failed with exit 1 (make exit 2); in the copy without `.git` it printed the Git checkout message and failed the same way |
-| T3 | Not run | Debian 13 and Rocky Linux 8.10 VMs | Pending | none |
-| T4 | Not run | Debian 13 and Rocky Linux 8.10 VMs | Pending | none |
+| T3 | 2026-09-11T06:42Z | Fresh clones of `d64fdbc` on Debian 13.6 and Rocky Linux 8.10 VMs | Pass | `git ls-files -s` listed the four files as `100755`; `./tools/install-wirepup.bash` and `./tools/install-system-wirepup.bash` with no arguments exited 1 at their own argument checks, not 126 |
+| T4 | 2026-09-11T06:44Z | The same clones; system prefix `/usr/local` | Pass | The documented `make build`, `install.dry-run`, `install` and `install.check` completed (the pre-existing install was replaced with the documented `INSTALL_FORCE=1`); installed executable `root:root` `0755`, completion `0644`; on Rocky Linux 8.10 SELinux was Enforcing with context `bin_t` |
 
 Pre-change observation, 2026-09-10: in fresh Debian 13 and Rocky Linux 8.10 VMs, a clone of `d05577f` listed the four files as `-rw-rw-r--`, and running either installer script directly exited 126 with `Permission denied`. The documented system installation passed with executable `root:root` `0755` and completion `0644`. On Rocky Linux 8.10, `sudo wirepup version` reported `command not found`, and `sudo /usr/local/bin/wirepup version` succeeded.
 
 ##### Closure Evidence
 
-- none
+- 2026-09-11: the four tracked scripts now carry Git mode `100755`, `make check` runs `mode-check`, and `CONTRIBUTING.md` documents it. T1-T2 passed on the host; T3-T4 passed on fresh clones of the carrying commit on Debian 13.6 and Rocky Linux 8.10. Implementation landed in commit `d64fdbca76cdf59d44af245a21b62ccf73e0d2d9`; at 2026-09-11T06:44Z `git rev-parse HEAD` and `@{upstream}` both reported that commit after `git fetch origin`. Issue #2 is closed by the `Closes #2` footer. M23 is Complete.
 
 ##### GitHub Projection
 
 Title: Shebang scripts lack the executable bit
 Labels: bug
 GitHub Milestone: none
-Observed State: open
+Observed State: closed
 Observed Labels: bug
 Observed Milestone: none
-Last Compared: 2026-09-11T06:36Z, remote updated 2026-09-11T06:36:48Z
+Last Compared: 2026-09-11T06:44Z, remote updated 2026-09-11T06:40:43Z
 
 ## Backlog
 
