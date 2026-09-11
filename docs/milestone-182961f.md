@@ -13,7 +13,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: M21 is Complete. M22 documentation and T1-T2 are verified in the working tree; review the 13 changed paths, then commit and push under the separate Git authorizations. Record M22 completion after verifying its Git landing.
+Next session entry point: `docs/milestone-182961f.md`: all assigned work is Complete; no Backlog work is recorded. Agree the next scope with the owner before adding work to this document.
 
 ## Milestone
 
@@ -42,9 +42,9 @@ Next session entry point: `docs/milestone-182961f.md`: M21 is Complete. M22 docu
 | cli | M19 | Guided execution from observed results | Milestone | Complete | No | D6, M18 | Bare terminal invocation guides the user through the existing operations and explains next actions; [detail](#m19---guided-execution-from-observed-results) |
 | shell | M20 | Bash completion and installation | Milestone | Complete | No | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
 | docs | M21 | Executable scenarios and bidirectional option links | Milestone | Complete | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
-| docs | M22 | Usage-first documentation navigation and cleanup | Milestone | In progress | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
+| docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Complete | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
 
-Status totals: 21 Complete, 1 In progress. Ready: none; M22 verification is recorded and Git landing remains. No Backlog rows.
+Status totals: 22 Complete. Ready: none. No unfinished Milestone or Backlog rows.
 
 ### Decisions
 
@@ -1354,7 +1354,7 @@ The executable verified for M21 was built from `aeda686bffb1375b3b62d3d529f4ac5d
 Origin: 182961f / M22
 Identity History: none
 GitHub Issue: none
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1435,7 +1435,8 @@ The M22 walkthrough executable reports `f886426-dirty` (documentation-only chang
 
 ##### Closure Evidence
 
-- 2026-09-08: README, the documentation index and installation guide provide current user entry points. CONTRIBUTING and the Claude entry point preserve maintained development instructions. Six superseded files were removed only after comparison and historical-reference checks; the inventory records every replacement. M22 implementation and T1-T2 are recorded in the working tree. Self-review covers reader routes (C1), retained requirements and history (C2), and command/evidence consistency (C3). Git landing and its completion record remain pending; M22 stays In progress.
+- 2026-09-08: README, the documentation index and installation guide provide current user entry points. CONTRIBUTING and the Claude entry point preserve maintained development instructions. Six superseded files were removed only after comparison and historical-reference checks; the inventory records every replacement. The deliverables and T1-T2 verification landed in commit `d05577f4ebf0732c02fcb40a5704066230fd7e22`. Self-review covers reader routes (C1), retained requirements and history (C2), and command/evidence consistency (C3).
+- 2026-09-08: completion recording approved. At 01:29 PDT, `git ls-remote --heads origin refs/heads/master` reported the same commit as local `HEAD` and `origin/master` from `git rev-parse`; the working tree was clean. Implementation, T1-T2, reader review and Git landing are complete. M22 is Complete.
 
 ## Backlog
 
