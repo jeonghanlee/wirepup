@@ -13,7 +13,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: all assigned work is Complete; no Backlog work is recorded. Agree the next scope with the owner before adding work to this document.
+Next session entry point: `docs/milestone-182961f.md`: M23 is In progress and T1-T2 pass; record the filed issue number, commit under separate Git authority, then run T3-T4 on that commit.
 
 ## Milestone
 
@@ -43,8 +43,9 @@ Next session entry point: `docs/milestone-182961f.md`: all assigned work is Comp
 | shell | M20 | Bash completion and installation | Milestone | Complete | No | D6, M18 | Context-aware completion works and make installs and verifies it; [detail](#m20---bash-completion-and-installation) |
 | docs | M21 | Executable scenarios and bidirectional option links | Milestone | Complete | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
 | docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Complete | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
+| shell | M23 | Tracked scripts with a shebang keep the executable bit | Milestone | In progress | No | D7 | Fresh clones carry mode `100755` for every tracked shebang file and `make check` enforces it; [detail](#m23---tracked-scripts-with-a-shebang-keep-the-executable-bit) |
 
-Status totals: 22 Complete. Ready: none. No unfinished Milestone or Backlog rows.
+Status totals: 22 Complete, 1 In progress. Ready: none. No Backlog rows.
 
 ### Decisions
 
@@ -56,6 +57,7 @@ Status totals: 22 Complete. Ready: none. No unfinished Milestone or Backlog rows
 | D4 | M15, M11, and M17 move from Backlog to Milestone: M15 names the oper-state sentinel once (`interfaces.OperStateUnknown`, mirrored by `output`); M11 keeps `decode.SetPorts` and records it as the seam for offset EPICS ports; M17 is to be done, its shape still to be picked; implementation not yet authorized | 2026-09-03 |
 | D5 | M17 shape: separate aggregate codes `ca-searches-no-response`/`pva-searches-no-response`, per-search codes unchanged. The aggregate data key is `searches` (number of unanswered searches), distinct from the per-search `count`, so the two never collide under one key | 2026-09-04 |
 | D6 | Assign M18-M22 to plan direct execution alongside no-argument terminal guidance, Bash completion with installation support, real scenario walkthroughs, two-way scenario/option links, and usage-first documentation cleanup. Preserve current safety rules, output contracts, and engineering references. Draft implementation plans are not yet accepted; implementation is not yet authorized. | 2026-09-05 |
+| D7 | Assign M23: tracked files whose first line starts with `#!` are committed with Git mode `100755`; a `mode-check` target run by `make check` fails when one is not, and fails with a message outside a Git checkout. The work is recorded here and projected to a GitHub issue. | 2026-09-10 |
 
 ### Assignment History
 
@@ -1437,6 +1439,83 @@ The M22 walkthrough executable reports `f886426-dirty` (documentation-only chang
 
 - 2026-09-08: README, the documentation index and installation guide provide current user entry points. CONTRIBUTING and the Claude entry point preserve maintained development instructions. Six superseded files were removed only after comparison and historical-reference checks; the inventory records every replacement. The deliverables and T1-T2 verification landed in commit `d05577f4ebf0732c02fcb40a5704066230fd7e22`. Self-review covers reader routes (C1), retained requirements and history (C2), and command/evidence consistency (C3).
 - 2026-09-08: completion recording approved. At 01:29 PDT, `git ls-remote --heads origin refs/heads/master` reported the same commit as local `HEAD` and `origin/master` from `git rev-parse`; the working tree was clean. Implementation, T1-T2, reader review and Git landing are complete. M22 is Complete.
+
+#### M23 - Tracked scripts with a shebang keep the executable bit
+
+Origin: 182961f / M23
+Identity History: none
+GitHub Issue: 2, https://github.com/jeonghanlee/wirepup/issues/2
+Status: In progress
+
+##### Summary
+
+Every tracked file is stored with Git mode `100644`, including four files whose first line is a shebang: `tools/install-wirepup.bash`, `tools/install-system-wirepup.bash`, `tests/install.bash` and `tests/vm/scenarios.py`. Make and the documented commands run them through `bash`, `/bin/bash -p` or `python3`, so the documented installation works, but running one of them directly from a checkout fails with `Permission denied` until the executable bit is set by hand.
+
+##### Scope
+
+- Record Git mode `100755` for the four files.
+- Add a `mode-check` target to `configure/RULES_CHECK` and run it from `check`. It fails and names each tracked file whose first line starts with `#!` but whose Git index mode is not `100755`. Outside a Git checkout it prints a message and fails.
+- Describe the new check where `CONTRIBUTING.md` lists what `make check` runs.
+
+Out of scope: script contents and invocation forms; tracked files without a shebang; the `sudo wirepup version` lookup failure on Rocky Linux 8, whose `sudo` `secure_path` omits `/usr/local/bin` and which `docs/installation.md` already covers.
+
+##### Completion Criteria
+
+- A fresh clone lists the four files with mode `100755`, and `tools/install-wirepup.bash` and `tools/install-system-wirepup.bash` run directly without arguments stop at their own argument checks.
+- `make check` passes on the changed tree and fails, naming the path, when a tracked shebang file has mode `100644` in the index or when run outside a Git checkout.
+- The documented system installation still passes on Debian 13 and Rocky Linux 8.10.
+- The change lands on `origin/master` and the linked GitHub issue is closed.
+
+##### Dependencies And Decisions
+
+- D7
+
+##### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: 2026-09-10 - set mode `100755` on the tracked shebang files, add `mode-check` to `make check` (failing outside a Git checkout), update `CONTRIBUTING.md`, and project this detail to a GitHub issue.
+Implementation Authorization: 2026-09-10 - fix the shebang executable-mode defect under this plan.
+Superseded Plan Artifacts: none
+
+1. Project this detail to a GitHub issue and record the issue number in the canonical detail. Done: issue #2.
+2. Set the executable bit on the four files so that Git records mode `100755`.
+3. In `configure/RULES_CHECK`, add `mode-check`: find tracked files whose first line starts with `#!` with `git grep --cached`, read their index modes with `git ls-files -s`, print each path that is not `100755` and exit 1; exit 1 with a message when no Git work tree is found. Add it to the `check` prerequisites.
+4. Update the Verification paragraph of `CONTRIBUTING.md`.
+5. Run T1-T2 before the commit and T3-T4 on the commit; commit with a `Closes` footer for the issue under separate Git authority.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | Repository check | In a full copy of the changed repository with the changed paths staged, run `make check TEST_FLAGS=-count=1` | Debian 13 host | `mode-check`, formatting, vet and all tests pass |
+| T2 | Regression | In the same copy, run `git update-index --chmod=-x tools/install-wirepup.bash` and `make mode-check`; in a copy of the tree without `.git`, run `make mode-check` | Debian 13 host | Exit 1 naming `tools/install-wirepup.bash`; exit 1 with the Git checkout message |
+| T3 | Fresh clone | Clone the commit carrying this change on fresh VMs; list the four files with `git ls-files -s` and run both installer scripts directly without arguments | Debian 13 and Rocky Linux 8.10 VMs | Four `100755` entries; each script exits 1 at its own argument check instead of 126 |
+| T4 | System installation | From that clone, run the documented `make build`, `install.dry-run`, `install` and `install.check` with `INSTALL_LOCATION=/usr/local` | Debian 13 and Rocky Linux 8.10 (SELinux enforcing) VMs | Installation passes; executable `root:root` `0755`, completion `0644` |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | 2026-09-11T05:47Z | Debian 13.6 host, Go 1.26.7, full copy of the working tree with the seven changed paths staged | Pass | `make check TEST_FLAGS=-count=1` exit 0; the four shebang files were `100755` in the copy's index with unchanged blobs, and `mode-check`, gofmt, vet and every package test passed |
+| T2 | 2026-09-11T05:48Z | Debian 13.6 host, the same copy and a copy of its tree without `.git` | Pass | After `git update-index --chmod=-x tools/install-wirepup.bash`, `make mode-check` listed that path and its recipe failed with exit 1 (make exit 2); in the copy without `.git` it printed the Git checkout message and failed the same way |
+| T3 | Not run | Debian 13 and Rocky Linux 8.10 VMs | Pending | none |
+| T4 | Not run | Debian 13 and Rocky Linux 8.10 VMs | Pending | none |
+
+Pre-change observation, 2026-09-10: in fresh Debian 13 and Rocky Linux 8.10 VMs, a clone of `d05577f` listed the four files as `-rw-rw-r--`, and running either installer script directly exited 126 with `Permission denied`. The documented system installation passed with executable `root:root` `0755` and completion `0644`. On Rocky Linux 8.10, `sudo wirepup version` reported `command not found`, and `sudo /usr/local/bin/wirepup version` succeeded.
+
+##### Closure Evidence
+
+- none
+
+##### GitHub Projection
+
+Title: Shebang scripts lack the executable bit
+Labels: bug
+GitHub Milestone: none
+Observed State: open
+Observed Labels: bug
+Observed Milestone: none
+Last Compared: 2026-09-11T06:36Z, remote updated 2026-09-11T06:36:48Z
 
 ## Backlog
 

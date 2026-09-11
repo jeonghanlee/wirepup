@@ -86,7 +86,9 @@ within the review scope requested for that change.
 ## Verification
 
 `make check` runs formatting checks, vet and the Go tests, including golden
-PCAP output. Use fresh runs when the change requires them:
+PCAP output. Its `mode-check` step fails when a tracked file whose first line
+starts with `#!` is not recorded with Git mode `100755`, and when run outside
+a Git checkout. Use fresh runs when the change requires them:
 
 ```bash
 make check TEST_FLAGS=-count=1

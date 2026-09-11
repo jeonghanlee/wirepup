@@ -1,4 +1,4 @@
-.PHONY: check-go check-gofmt check-cc check-tools test race vet fmt-check check
+.PHONY: check-go check-gofmt check-cc check-tools test race vet fmt-check mode-check check
 
 check-go:
 	$(QUIET) if ! command -v "$(GO)" >/dev/null 2>&1; then \
@@ -46,5 +46,24 @@ fmt-check: check-gofmt
 	    exit 1; \
 	fi
 
-## Run formatting checks, vet, and tests
-check: fmt-check vet test
+## Fail if a tracked file whose first line starts with #! is not mode 100755 in Git
+mode-check:
+	$(QUIET) prefix="$$(git rev-parse --show-prefix 2>/dev/null)" && [ -z "$$prefix" ] || { \
+	    printf '%s\n' 'error: mode-check requires a Git checkout of this repository.' \
+	        'Obtain the source with git clone so that file modes are recorded.'; \
+	    exit 1; \
+	}; \
+	matches="$$(git -c core.quotePath=false grep --cached -I -n -e '^#!')"; \
+	status=$$?; \
+	if [ "$$status" -gt 1 ]; then exit "$$status"; fi; \
+	out="$$(printf '%s\n' "$$matches" | sed -n 's/:1:#!.*$$//p' | while IFS= read -r path; do \
+	    case "$$(git ls-files -s -- "$$path")" in 100755\ *) ;; *) printf '%s\n' "$$path" ;; esac; \
+	done)"; \
+	if [ -n "$$out" ]; then \
+	    printf '%s\n' 'error: tracked files starting with #! are not mode 100755 in the Git index:' "$$out" \
+	        'Set the mode with chmod +x and git add, or with git update-index --chmod=+x.'; \
+	    exit 1; \
+	fi
+
+## Run formatting and mode checks, vet, and tests
+check: fmt-check mode-check vet test
