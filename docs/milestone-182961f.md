@@ -13,7 +13,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: all assigned work is Complete; no Backlog work is recorded. Agree the next scope with the owner before adding work to this document.
+Next session entry point: `docs/milestone-182961f.md`: M24 is authorized and In progress; implement the RHEL symlink and `make uninstall`, then run T1-T3 on fresh VMs.
 
 ## Milestone
 
@@ -44,8 +44,9 @@ Next session entry point: `docs/milestone-182961f.md`: all assigned work is Comp
 | docs | M21 | Executable scenarios and bidirectional option links | Milestone | Complete | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
 | docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Complete | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
 | shell | M23 | Tracked scripts with a shebang keep the executable bit | Milestone | Complete | No | D7 | Fresh clones carry mode `100755` for every tracked shebang file and `make check` enforces it; [detail](#m23---tracked-scripts-with-a-shebang-keep-the-executable-bit) |
+| shell | M24 | RHEL-family system install adds a sudo-searched symlink | Milestone | In progress | No | D8 | On a RHEL-family host, system install creates and verifies `/usr/bin/wirepup` to the installed binary so `sudo wirepup` resolves; Debian is unaffected; [detail](#m24---rhel-family-system-install-adds-a-sudo-searched-symlink) |
 
-Status totals: 23 Complete. Ready: none. No unfinished Milestone or Backlog rows.
+Status totals: 23 Complete, 1 In progress. Ready: none. No Backlog rows.
 
 ### Decisions
 
@@ -58,6 +59,7 @@ Status totals: 23 Complete. Ready: none. No unfinished Milestone or Backlog rows
 | D5 | M17 shape: separate aggregate codes `ca-searches-no-response`/`pva-searches-no-response`, per-search codes unchanged. The aggregate data key is `searches` (number of unanswered searches), distinct from the per-search `count`, so the two never collide under one key | 2026-09-04 |
 | D6 | Assign M18-M22 to plan direct execution alongside no-argument terminal guidance, Bash completion with installation support, real scenario walkthroughs, two-way scenario/option links, and usage-first documentation cleanup. Preserve current safety rules, output contracts, and engineering references. Draft implementation plans are not yet accepted; implementation is not yet authorized. | 2026-09-05 |
 | D7 | Assign M23: tracked files whose first line starts with `#!` are committed with Git mode `100755`; a `mode-check` target run by `make check` fails when one is not, and fails with a message outside a Git checkout. The work is recorded here and projected to a GitHub issue. | 2026-09-10 |
+| D8 | Assign M24: fix issue #3 by creating a RHEL-family-only symlink at system install from a `sudo`-searched directory (`/usr/bin/wirepup`) to the installed binary, mirroring the established `epics-ioc-runner` pattern. Debian keeps no symlink. Uninstall handling resolved to a new `make uninstall` target that removes the binary, completion, and the RHEL symlink. | 2026-09-11 |
 
 ### Assignment History
 
@@ -1516,6 +1518,85 @@ Observed State: closed
 Observed Labels: bug
 Observed Milestone: none
 Last Compared: 2026-09-11T06:44Z, remote updated 2026-09-11T06:40:43Z
+
+#### M24 - RHEL-family system install adds a sudo-searched symlink
+
+Origin: 182961f / M24
+Identity History: none
+GitHub Issue: 3, https://github.com/jeonghanlee/wirepup/issues/3
+Status: In progress
+
+##### Summary
+
+On RHEL-family systems (Rocky Linux, RHEL), `sudo`'s `secure_path` excludes `/usr/local/bin`, so after the documented system install `sudo wirepup version` reports `command not found` while `sudo /usr/local/bin/wirepup version` works. A sibling project, `epics-ioc-runner`, already solves this by creating a RHEL-only symlink from a `sudo`-searched directory (`/usr/bin/ioc-runner`) to the installed binary, gated on `/etc/os-release`, verified after creation, and removed only when it is a symlink to the expected target. M24 applies the same pattern to WirePup.
+
+##### Scope
+
+- On a RHEL-family host only (detected from `/etc/os-release` `ID`/`ID_LIKE`), the system install creates `/usr/bin/wirepup` as a symlink to the installed `INSTALL_LOCATION/bin/wirepup`, then verifies it is a symlink pointing to that target.
+- Debian and other non-RHEL hosts create no symlink; their `secure_path` already includes `/usr/local/bin`.
+- The symlink is created only for a system prefix whose `bin` is outside `secure_path`; a user-home install (`$HOME/.local`) creates none.
+- `install.check` verifies the symlink on a RHEL-family host and reports it.
+- Add a `make uninstall` target that reverses the system install at the same `INSTALL_LOCATION`: remove the installed binary and completion, and remove the RHEL symlink only when it is a symlink to the expected target. Removal of protected paths uses sudo as install does.
+- Document the behavior and the `make uninstall` step in `docs/installation.md`, and narrow issue #3 to this direction.
+
+Out of scope: editing host `sudo`/`secure_path`; non-RHEL hosts; the `install-*.bash` refusal of a symlink at the install destination itself, which stays unchanged; removing a real file (non-symlink) at the symlink path.
+
+##### Completion Criteria
+
+- After system install on a RHEL-family host, `/usr/bin/wirepup` is a symlink to the installed binary and `sudo wirepup version` succeeds.
+- The same install on Debian creates no `/usr/bin/wirepup`, and the installed binary and completion modes are unchanged.
+- `install.check` passes on both and reports the symlink only where it applies.
+- `make uninstall` removes the binary, completion, and the RHEL symlink at the given `INSTALL_LOCATION`, and never removes a real file at the symlink path.
+- `docs/installation.md` states the RHEL symlink and `make uninstall`; issue #3 reflects the chosen direction and closes when the change lands.
+
+##### Dependencies And Decisions
+
+- D8.
+- Uninstall handling resolved on 2026-09-11 to option (a): add a `make uninstall` target that removes the binary, completion, and the RHEL symlink, mirroring `epics-ioc-runner`. The symlink is removed only when it is a symlink to the expected target.
+
+##### Implementation Plan
+
+Plan Status: accepted
+Plan Acceptance: 2026-09-11 - RHEL-family-only `/usr/bin` symlink at system install plus a `make uninstall` target, mirroring the `epics-ioc-runner` pattern.
+Implementation Authorization: 2026-09-11 - owner direction to proceed.
+Superseded Plan Artifacts: none
+
+1. Add a RHEL-family test (`/etc/os-release` `ID`/`ID_LIKE`) and a symlink target derivation to the install driver, following the `epics-ioc-runner` `is_rhel_family` shape.
+2. After the verified binary copy, on a RHEL-family host with a system prefix, create `/usr/bin/wirepup` as a symlink to the installed binary through the root helper and verify it is a symlink to the expected target. Keep the existing symlink-destination refusal for the binary and completion unchanged.
+3. Extend `install.check` to verify and report the symlink on a RHEL-family host.
+4. Add a `make uninstall` target and its driver action: remove the installed binary and completion at `INSTALL_LOCATION` (sudo for protected paths), and remove the RHEL symlink only when `readlink` matches the expected target. Then update `docs/installation.md` with the RHEL symlink behavior and the `make uninstall` step.
+5. Verify with T1-T3, then commit with a `Closes #3` footer under separate Git authority.
+
+##### Test Plan
+
+| Label | Layer | Method | Environment | Expected Result |
+| --- | --- | --- | --- | --- |
+| T1 | System install | Documented `make build`/`install`/`install.check` with `INSTALL_LOCATION=/usr/local`, then `sudo wirepup version` | Fresh Rocky Linux 8.10 VM (SELinux enforcing) | `/usr/bin/wirepup` is a symlink to `/usr/local/bin/wirepup`; `install.check` reports it; `sudo wirepup version` succeeds |
+| T2 | System install | The same commands | Fresh Debian 13 VM | No `/usr/bin/wirepup` is created; installed binary `0755` and completion `0644` unchanged; `install.check` passes |
+| T3 | Removal | Run `make uninstall INSTALL_LOCATION=/usr/local` on the RHEL host; separately point the symlink path at a real file and rerun | Rocky Linux 8.10 VM | Binary, completion, and the RHEL symlink are removed; a real (non-symlink) file at the symlink path is never removed |
+
+##### Verification Results
+
+| Label | Observed At | Environment | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| T1 | 2026-09-11T15:15Z | Fresh Rocky Linux 8.10 VM (SELinux enforcing), Go 1.26.7, working tree built from a tarball | Pass | `make install INSTALL_LOCATION=/usr/local` created `/usr/bin/wirepup -> /usr/local/bin/wirepup`; dry-run announced it; `install.check` reported it; `sudo wirepup version` succeeded; binary `root:root 0755`, completion `0644` |
+| T2 | 2026-09-11T15:15Z | Fresh Debian 13 VM, Go 1.26.7, working tree built from a tarball | Pass | The same install created no `/usr/bin/wirepup`; dry-run showed no symlink line; `install.check` passed; `sudo wirepup version` succeeded; binary `root:root 0755`, completion `0644` |
+| T3 | 2026-09-11T15:15Z | The Rocky Linux 8.10 VM | Pass | `make uninstall INSTALL_LOCATION=/usr/local` removed binary, completion, and the symlink; after reinstalling and replacing the symlink with a real file, a second `make uninstall` reported `SKIP` and left the real file in place |
+
+##### Closure Evidence
+
+- 2026-09-11: implemented the RHEL-family symlink in the install driver and root helper, a `make uninstall` target, and `docs/installation.md`; `make check` and shellcheck pass locally, and a local user-prefix install/uninstall confirms the non-sudo path. T1-T3 passed on fresh Rocky Linux 8.10 and Debian 13 VMs. Repository landing and issue #3 closure remain, to be recorded after the commit reaches `origin/master`.
+- 2026-09-11: review passes applied before commit added the `make uninstall` rows to the primary `make help` table (`configure/RULES_HELP`), made the not-root guard message action-neutral, and added removal to the `docs/installation.md` scope sentence. Those edits are text-only and do not change the installed behavior. A third-person re-run of the final tree on the Rocky Linux 8.10 VM at 2026-09-11T23:06Z reconfirmed T1 and T3 (symlink created and verified, `sudo wirepup version`, and uninstall removing all three while preserving a real file at the symlink path).
+
+##### GitHub Projection
+
+Title: sudo wirepup version verification step fails on Rocky Linux / RHEL
+Labels: documentation
+GitHub Milestone: none
+Observed State: open
+Observed Labels: documentation
+Observed Milestone: none
+Last Compared: 2026-09-11T08:16Z, remote open
 
 ## Backlog
 

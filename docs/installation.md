@@ -3,7 +3,8 @@
 ## Scope
 
 Build and install WirePup on Linux, select the executable used by your shell
-and sudo, update existing files, and activate Bash completion.
+and sudo, update existing files, activate Bash completion, and remove the
+installation.
 
 **Out of scope:** packet analysis and network changes. Continue with
 [first use](../README.md#first-use) or a [usage scenario](usage-scenarios.md).
@@ -90,6 +91,14 @@ Build, version and completion checks run as your normal user.
 Completion is installed at
 `/usr/local/share/bash-completion/completions/wirepup`.
 
+On a RHEL-family host (Rocky Linux, RHEL), `sudo`'s `secure_path` excludes
+`/usr/local/bin`, so `sudo wirepup` would not resolve. For a system install
+there, the install additionally creates and verifies `/usr/bin/wirepup` as a
+symlink to the installed executable, so `sudo wirepup version` works. Debian
+already includes `/usr/local/bin` in `secure_path` and gets no symlink. The
+symlink is created only for a system prefix; a user install under
+`$HOME/.local` creates none. `make uninstall` removes it.
+
 ## Updates and replacement
 
 Repeat the same preview, install and check commands with the same
@@ -114,6 +123,21 @@ a time: a later copy failure can leave the executable updated and completion
 unchanged. Correct the reported failure, repeat installation and run
 `install.check` with the same prefix.
 
+## Uninstall
+
+Remove the installed files with the same `INSTALL_LOCATION` used to install:
+
+```bash
+make uninstall INSTALL_LOCATION=/usr/local
+```
+
+This removes the executable, the Bash completion, and, on a RHEL-family host,
+the `/usr/bin/wirepup` symlink. The symlink is removed only when it still points
+at the installed executable; a real file at that path is never removed. A system
+prefix uses sudo for the protected paths, exactly as install does; a user prefix
+needs none. Removal leaves any PATH entry you added to your own shell
+configuration untouched.
+
 ## Verify the selected command
 
 `install.check` checks the executable, version, active PATH and completion
@@ -121,8 +145,10 @@ registration. It fails if another executable takes precedence or completion
 is missing or invalid. Its output provides the PATH and completion
 activation commands.
 
-`sudo wirepup version` separately checks sudo's command lookup.
-If sudo does not search `/usr/local/bin`, use the full path:
+`sudo wirepup version` separately checks sudo's command lookup. On a RHEL-family
+host the system install creates `/usr/bin/wirepup` so this resolves; elsewhere
+`/usr/local/bin` is already on sudo's path. If a custom prefix leaves sudo unable
+to find the command, use the full path:
 
 ```bash
 sudo /usr/local/bin/wirepup version

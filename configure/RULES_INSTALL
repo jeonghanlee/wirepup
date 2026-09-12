@@ -1,4 +1,4 @@
-.PHONY: install install.dry-run install.apply install.check install.preflight
+.PHONY: install install.dry-run install.apply install.check install.preflight uninstall
 
 # Check before any build in a combined build/install invocation.
 ifneq ($(filter install install.apply,$(MAKECMDGOALS)),)
@@ -23,3 +23,7 @@ install.apply: install.preflight build
 ## Verify executable, version, PATH, and installed Bash completion
 install.check:
 	$(QUIET) $(INSTALL_ENV) bash $(call shell_quote,$(INSTALL_TOOL)) check $(INSTALL_ARGS)
+
+## Remove the executable, completion, and any RHEL symlink under INSTALL_LOCATION
+uninstall:
+	$(QUIET) $(INSTALL_ENV) bash $(call shell_quote,$(INSTALL_TOOL)) uninstall $(INSTALL_ARGS)

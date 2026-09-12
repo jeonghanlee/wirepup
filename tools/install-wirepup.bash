@@ -17,6 +17,7 @@ readonly completion_destination="${destination%/bin/wirepup}/share/bash-completi
 readonly install_command="${INSTALL_COMMAND:-install}"
 readonly install_force="${INSTALL_FORCE:-0}"
 readonly command_name="wirepup"
+readonly rhel_symlink="/usr/bin/wirepup"
 allow_replace=0
 staged_path=""
 source_snapshot=""
@@ -91,6 +92,74 @@ function needs_sudo {
         parent="${parent:-/}"
     done
     [[ ! -w "${parent}" || ! -x "${parent}" ]]
+}
+
+# Parse /etc/os-release as data, never source it: a root-run helper must not
+# execute a system file that may carry shell metacharacters.
+function is_rhel_family {
+    local id="" id_like="" line
+
+    [[ -r /etc/os-release ]] || return 1
+    while IFS= read -r line; do
+        case "${line}" in
+            ID=*) id="${line#ID=}" ;;
+            ID_LIKE=*) id_like="${line#ID_LIKE=}" ;;
+        esac
+    done < /etc/os-release
+    id="${id%\"}"; id="${id#\"}"
+    id_like="${id_like%\"}"; id_like="${id_like#\"}"
+    [[ "${id}" == rhel ]] && return 0
+    case " ${id_like} " in
+        *" rhel "*) return 0 ;;
+    esac
+    return 1
+}
+
+# The RHEL secure_path symlink applies only to a RHEL-family host, a system
+# prefix whose bin is outside secure_path, and a link path distinct from the
+# installed binary.
+function wants_rhel_symlink {
+    is_rhel_family || return 1
+    needs_sudo "${destination}" || return 1
+    [[ "${rhel_symlink}" != "${destination}" ]] || return 1
+}
+
+function create_rhel_symlink {
+    if needs_sudo "${rhel_symlink}"; then
+        /usr/bin/sudo /bin/bash -p tools/install-system-wirepup.bash --symlink "${rhel_symlink}" "${destination}"
+    else
+        [[ ! -e "${rhel_symlink}" || -L "${rhel_symlink}" ]] || die "refusing to replace a non-symlink at ${rhel_symlink}"
+        ln -sfn -- "${destination}" "${rhel_symlink}"
+        printf 'PASS: %s -> %s\n' "${rhel_symlink}" "${destination}"
+    fi
+}
+
+function remove_artifact {
+    local target="$1"
+    local kind="$2"
+
+    if [[ ! -e "${target}" && ! -L "${target}" ]]; then
+        printf '%s already absent: %s\n' "${kind}" "${target}"
+        return 0
+    fi
+    if needs_sudo "${target}"; then
+        /usr/bin/sudo /bin/bash -p tools/install-system-wirepup.bash --remove "${target}"
+    else
+        [[ ! -L "${target}" ]] || die "refusing to remove a symlink at ${target}"
+        rm -f -- "${target}"
+        printf 'removed %s\n' "${target}"
+    fi
+}
+
+function remove_rhel_symlink {
+    if needs_sudo "${rhel_symlink}"; then
+        /usr/bin/sudo /bin/bash -p tools/install-system-wirepup.bash --unsymlink "${rhel_symlink}" "${destination}"
+    elif [[ -L "${rhel_symlink}" && "$(readlink -- "${rhel_symlink}")" == "${destination}" ]]; then
+        rm -f -- "${rhel_symlink}"
+        printf 'removed symlink %s\n' "${rhel_symlink}"
+    else
+        printf 'SKIP: %s is not a symlink to %s; left unchanged\n' "${rhel_symlink}" "${destination}"
+    fi
 }
 
 function check_privileges {
@@ -181,6 +250,11 @@ function check_installation {
     fi
     "${destination}" version
     check_completion
+    if wants_rhel_symlink; then
+        [[ -L "${rhel_symlink}" && "$(readlink -- "${rhel_symlink}")" == "${destination}" ]] \
+            || die "RHEL secure_path symlink missing or wrong: ${rhel_symlink} (expected -> ${destination})"
+        printf 'PASS: RHEL secure_path symlink %s -> %s\n' "${rhel_symlink}" "${destination}"
+    fi
     printf '%s\n' "PASS: WirePup installation is active"
 }
 
@@ -236,7 +310,7 @@ shift 4
 declare -ar build_settings=("$@")
 [[ "${destination}" == /*/bin/wirepup ]] || die "destination must be an absolute path ending in /bin/wirepup"
 [[ "${install_force}" == 0 || "${install_force}" == 1 ]] || die "INSTALL_FORCE must be 0 or 1"
-[[ ${EUID} -ne 0 ]] || die "run make install as your normal user; only the file installation uses sudo"
+[[ ${EUID} -ne 0 ]] || die "run make as your normal user; only the protected file operations use sudo"
 
 case "${action}" in
     preflight)
@@ -253,6 +327,9 @@ case "${action}" in
         printf 'Source: %s\n' "${source_path}"
         printf 'Proposed action: build and install at %s\n' "${destination}"
         printf 'Proposed action: install Bash completion at %s (mode 0644)\n' "${completion_destination}"
+        if wants_rhel_symlink; then
+            printf 'Proposed action: create RHEL secure_path symlink %s -> %s\n' "${rhel_symlink}" "${destination}"
+        fi
         if [[ -f "${destination}" || -f "${completion_destination}" ]]; then
             if [[ "${install_force}" == 1 ]]; then
                 printf '%s\n' 'Replacement: explicitly approved by INSTALL_FORCE=1'
@@ -302,6 +379,9 @@ case "${action}" in
         trap 'exit 143' TERM
         install_file "${source_path}" "${destination}" binary "${binary_approved}"
         install_file "${completion_source}" "${completion_destination}" completion "${completion_approved}"
+        if wants_rhel_symlink; then
+            create_rhel_symlink
+        fi
         "${destination}" version
         check_completion
         printf '%s\n' "PASS: WirePup executable and Bash completion installed"
@@ -311,6 +391,15 @@ case "${action}" in
         ;;
     check)
         check_installation
+        ;;
+    uninstall)
+        print_state
+        remove_artifact "${destination}" "executable"
+        remove_artifact "${completion_destination}" "completion"
+        if is_rhel_family && [[ "${rhel_symlink}" != "${destination}" ]]; then
+            remove_rhel_symlink
+        fi
+        printf '%s\n' "PASS: WirePup system files removed for ${destination%/bin/wirepup}"
         ;;
     *)
         die "unsupported action: ${action}"
