@@ -13,7 +13,7 @@ Canonical branch or ref: master
 Git upstream: origin/master
 Remote tracker: none
 
-Next session entry point: `docs/milestone-182961f.md`: M24 is authorized and In progress; implement the RHEL symlink and `make uninstall`, then run T1-T3 on fresh VMs.
+Next session entry point: `docs/milestone-182961f.md`: all assigned work is Complete; no Backlog work is recorded. Agree the next scope with the owner before adding work to this document.
 
 ## Milestone
 
@@ -44,9 +44,9 @@ Next session entry point: `docs/milestone-182961f.md`: M24 is authorized and In 
 | docs | M21 | Executable scenarios and bidirectional option links | Milestone | Complete | No | D6, M18, M19, M20 | Scenarios explain their options; each option links to relevant verified scenarios; [detail](#m21---executable-scenarios-and-bidirectional-option-links) |
 | docs | M22 | Usage-first documentation navigation and cleanup | Milestone | Complete | No | D6, M21 | User navigation leads to verified usage; obsolete plans retired without losing current requirements; [detail](#m22---usage-first-documentation-navigation-and-cleanup) |
 | shell | M23 | Tracked scripts with a shebang keep the executable bit | Milestone | Complete | No | D7 | Fresh clones carry mode `100755` for every tracked shebang file and `make check` enforces it; [detail](#m23---tracked-scripts-with-a-shebang-keep-the-executable-bit) |
-| shell | M24 | RHEL-family system install adds a sudo-searched symlink | Milestone | In progress | No | D8 | On a RHEL-family host, system install creates and verifies `/usr/bin/wirepup` to the installed binary so `sudo wirepup` resolves; Debian is unaffected; [detail](#m24---rhel-family-system-install-adds-a-sudo-searched-symlink) |
+| shell | M24 | RHEL-family system install adds a sudo-searched symlink | Milestone | Complete | No | D8 | On a RHEL-family host, system install creates and verifies `/usr/bin/wirepup` to the installed binary so `sudo wirepup` resolves; Debian is unaffected; [detail](#m24---rhel-family-system-install-adds-a-sudo-searched-symlink) |
 
-Status totals: 23 Complete, 1 In progress. Ready: none. No Backlog rows.
+Status totals: 24 Complete. Ready: none. No unfinished Milestone or Backlog rows.
 
 ### Decisions
 
@@ -1524,7 +1524,7 @@ Last Compared: 2026-09-11T06:44Z, remote updated 2026-09-11T06:40:43Z
 Origin: 182961f / M24
 Identity History: none
 GitHub Issue: 3, https://github.com/jeonghanlee/wirepup/issues/3
-Status: In progress
+Status: Complete
 
 ##### Summary
 
@@ -1587,16 +1587,17 @@ Superseded Plan Artifacts: none
 
 - 2026-09-11: implemented the RHEL-family symlink in the install driver and root helper, a `make uninstall` target, and `docs/installation.md`; `make check` and shellcheck pass locally, and a local user-prefix install/uninstall confirms the non-sudo path. T1-T3 passed on fresh Rocky Linux 8.10 and Debian 13 VMs. Repository landing and issue #3 closure remain, to be recorded after the commit reaches `origin/master`.
 - 2026-09-11: review passes applied before commit added the `make uninstall` rows to the primary `make help` table (`configure/RULES_HELP`), made the not-root guard message action-neutral, and added removal to the `docs/installation.md` scope sentence. Those edits are text-only and do not change the installed behavior. A third-person re-run of the final tree on the Rocky Linux 8.10 VM at 2026-09-11T23:06Z reconfirmed T1 and T3 (symlink created and verified, `sudo wirepup version`, and uninstall removing all three while preserving a real file at the symlink path).
+- 2026-09-12: implementation landed in commit `5d236ae0c437fb9162bab5f9543740ca780b7c0a`; at 2026-09-12T00:16Z `git rev-parse HEAD` and `@{upstream}` both reported that commit after `git fetch origin`, and issue #3 was observed closed by the `Closes #3` footer. M24 is Complete.
 
 ##### GitHub Projection
 
 Title: sudo wirepup version verification step fails on Rocky Linux / RHEL
 Labels: documentation
 GitHub Milestone: none
-Observed State: open
+Observed State: closed
 Observed Labels: documentation
 Observed Milestone: none
-Last Compared: 2026-09-11T08:16Z, remote open
+Last Compared: 2026-09-12T00:16Z, remote closed
 
 ## Backlog
 
