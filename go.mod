@@ -7,6 +7,6 @@ require golang.org/x/sys v0.47.0
 require golang.org/x/term v0.45.0
 
 require (
-	github.com/gopacket/gopacket v1.7.1
+	github.com/gopacket/gopacket v1.7.2
 	golang.org/x/net v0.58.0 // indirect
 )
